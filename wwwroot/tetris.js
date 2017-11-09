@@ -13,6 +13,65 @@
 
 /* ~~~~~~ actual game ~~~~~~ */
 
+var dirtyRectangles = [];
+var backgroundCanvas = document.getElementById("background");
+var backgroundContext = backgroundCanvas.getContext("2d");
+var fieldCanvas = document.getElementById("main");
+var fieldCanvasContext = fieldCanvas.getContext("2d");
+var lastLoopTime = 0;
+var isGameOver = false;
+
+function init() {
+    grid.init();
+
+    //setup background canvas
+    backgroundCanvas.width = window.innerWidth;
+    backgroundCanvas.height = window.innerHeight;
+
+    //setup main canvas
+    fieldCanvas.width = window.innerWidth;
+    fieldCanvas.height = window.innerHeight;
+
+    //setup game loop
+    var loop = function(time = 0) {
+        var deltaTime = time - lastLoopTime;
+        lastLoopTime = time;
+        update(deltaTime);
+        render();
+        window.requestAnimationFrame(loop, backgroundCanvas);
+    }
+    //activate game loop
+    window.requestAnimationFrame(loop, backgroundCanvas);
+
+    //setup walls
+    for (var x = 0; x <= grid.size.x + 1; ++x) {
+        for (var y = 0; y <= grid.size.y; ++y) {
+            if (x === 0 || x === grid.size.x + 1 || y === grid.size.y) {
+                var block = new Block(y % 2 === 0 ? "grey" : "black");
+                block.setCanvasPosition({ x: x * blockSize, y: y * blockSize });
+                block.draw(backgroundContext);
+            }
+        }
+    }
+
+    //start actual game
+    start();
+}
+
+function randomIntFromInterval(min, max) {
+    return Math.floor(Math.random() * (max - min + 1) + min);
+}
+
+//https://stackoverflow.com/questions/1484506/random-color-generator
+function getRandomColor() {
+    var letters = '0123456789ABCDEF';
+    var color = '#';
+    for (var i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+}
+
 var grid = {
     size: { x: 10, y: 20 },
     matrix: [],
@@ -20,7 +79,7 @@ var grid = {
     activeBlockContainer: 0,
     spawnX: 0,
 
-    init: function() {
+    init: function () {
         this.spawnX = this.size.x / 2;
         for (var x = 0; x < this.size.x; ++x) {
             this.matrix[x] = [];
@@ -29,15 +88,15 @@ var grid = {
         }
     },
 
-    getCanvasPositionFromGridPosition: function(x, y) {
+    getCanvasPositionFromGridPosition: function (x, y) {
         return {
             x: blockSize /*wall*/ + x * blockSize,
             y: y * blockSize
         }
     },
 
-    spawnNewBlockContainer : function() {
-        grid.spawnBlockContainer(new BlockContainer("red", blockContainer.normalL));
+    spawnNewBlockContainer: function () {
+        grid.spawnBlockContainer(new BlockContainer(getRandomColor(), blockContainer.normalL));
     },
 
     spawnBlockContainer: function (container = BlockContainer) {
@@ -92,17 +151,17 @@ var grid = {
     moveActiveBlockContainerDown: function () {
         var container = this.activeBlockContainer;
         var canMove = true;
-        container.blocks.forEach(function(block = Block) {
+        container.blocks.forEach(function (block = Block) {
             canMove &= grid.isMoveBlockDownPossible(block);
         });
         if (canMove) {
             this.activeBlockContainer.blocks.forEach(function (block = Block) {
                 grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined; //WHY THE FUCK DO I NEED TO CALL GRID.MATRIX AND CAN'T USE THIS.MATRIX??!??????
             });
-            this.activeBlockContainer.blocks.forEach(function(block = Block) {
+            this.activeBlockContainer.blocks.forEach(function (block = Block) {
                 block.moveDown();
             });
-            this.activeBlockContainer.blocks.forEach(function(block = Block) {
+            this.activeBlockContainer.blocks.forEach(function (block = Block) {
                 grid.matrix[block.gridPosition.x][++block.gridPosition.y] = block;
             });
         } else {
@@ -114,9 +173,10 @@ var grid = {
             //todo: move this to another location?
             this.spawnNewBlockContainer();
         }
-        
+
     },
 
+    //this is used for all blocks if a row will be cleared
     moveBlockDown: function (block) {
         //check if block can move
         if (block.container || block.gridPosition.y + 1 >= this.size.y ||
@@ -129,53 +189,6 @@ var grid = {
 
         block.moveDown();
     }
-}
-
-var dirtyRectangles = [];
-var backgroundCanvas = document.getElementById("background");
-var backgroundContext = backgroundCanvas.getContext("2d");
-var fieldCanvas = document.getElementById("main");
-var fieldCanvasContext = fieldCanvas.getContext("2d");
-var lastLoopTime = 0;
-var isGameOver = false;
-
-function init() {
-    grid.init();
-
-    //setup background canvas
-    backgroundCanvas.width = window.innerWidth;
-    backgroundCanvas.height = window.innerHeight;
-
-    //setup main canvas
-    fieldCanvas.width = window.innerWidth;
-    fieldCanvas.height = window.innerHeight;
-
-    //setup game loop
-    var loop = function(time = 0) {
-        var deltaTime = time - lastLoopTime;
-        lastLoopTime = time;
-        update(deltaTime);
-        render();
-        window.requestAnimationFrame(loop, backgroundCanvas);
-    }
-    //activate game loop
-    window.requestAnimationFrame(loop, backgroundCanvas);
-
-    //setup walls
-    for (var x = 0; x <= grid.size.x + 1; ++x) {
-        for (var y = 0; y <= grid.size.y; ++y) {
-            if (x === 0 || x === grid.size.x + 1 || y === grid.size.y) {
-                var block = new Block(y % 2 === 0 ? "grey" : "black");
-                block.setCanvasPosition({ x: x * blockSize, y: y * blockSize });
-                block.draw(backgroundContext);
-            }
-        }
-    }
-
-    //start actual game
-    start();
-
-    grid.spawnNewBlockContainer();
 }
 
 var blockSize = 30;
@@ -343,7 +356,7 @@ blockContainer.normalL.rotationBlockMatrix = [
 //    [0, 0, 0, 0]
 //];
 function start() {
-
+    grid.spawnNewBlockContainer();
 }
 
 var automaticMoveDownTimespan = 300; // I HAVE NO FUCKING CLUE HOW MUCH TIME THIS IS?! ->> cause a value of 300 is approx. around one second???
@@ -413,15 +426,27 @@ function update(deltaTime) {
     }
 
     //key mapping - the held shit doesn't work -> our update method deltatime is too fast -> consider other method!
-    if (KEY_STATUS.left.pressed && !KEY_STATUS.left.held) {
+    if (KEY_STATUS.left.pressed && !lock.left) {
         moveLeft();
-    } else if (KEY_STATUS.right.pressed && !KEY_STATUS.right.held) {
+    } else if (KEY_STATUS.right.pressed && !lock.right) {
         moveRight();
-    } else if (KEY_STATUS.up.pressed && !KEY_STATUS.up.held) {
+    } else if (KEY_STATUS.up.pressed && !lock.rotate) {
         rotate();
-    } else if (KEY_STATUS.down.pressed && !KEY_STATUS.down.held) {
+    } else if (KEY_STATUS.down.pressed && !lock.drop) {
         drop();
     }
+
+    lock.left = KEY_STATUS.left.pressed;
+    lock.right = KEY_STATUS.right.pressed;
+    lock.rotate = KEY_STATUS.up.pressed;
+    lock.drop = KEY_STATUS.down.pressed;
+}
+
+var lock = {
+    left: false,
+    right: false,
+    drop: false,
+    rotate: false
 }
 
 function render() {
@@ -486,8 +511,7 @@ KEY_CODES = {
 // of a key press and which one was pressed when determining
 // when to move and which direction.
 KEY_STATUS = {
-    pressed: false,
-    held: false
+    pressed: false
 };
 for (code in KEY_CODES) {
     KEY_STATUS[KEY_CODES[code]] = [false, false];
@@ -504,8 +528,7 @@ document.onkeydown = function(e) {
     var keyCode = (e.keyCode) ? e.keyCode : e.charCode;
     if (KEY_CODES[keyCode]) {
         e.preventDefault();
-
-        KEY_STATUS[KEY_CODES[keyCode]].held = KEY_STATUS[KEY_CODES[keyCode]].pressed;
+        
         KEY_STATUS[KEY_CODES[keyCode]].pressed = true;
 
         //console.log()
@@ -522,6 +545,5 @@ document.onkeyup = function(e) {
     if (KEY_CODES[keyCode]) {
         e.preventDefault();
         KEY_STATUS[KEY_CODES[keyCode]].pressed = false;
-        KEY_STATUS[KEY_CODES[keyCode]].held = false;
     }
 }
