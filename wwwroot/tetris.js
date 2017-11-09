@@ -105,13 +105,14 @@ var grid = {
 
         var triggerGameOver = false;
         var spawnX = (this.size.x - container.blockMatrix.length) / 2;
+        this.activeBlockContainer.upperLeftGridCornerPosition = { x: spawnX, y: 0 };
         for (var y = 0; y < container.blockMatrix[0].length; ++y) {
             //var rowBlockCount = 0;
 
             for (var x = 0; x < container.blockMatrix.length; ++x) {
                 //rowBlockCount += container.blockMatrix[x][y];
 
-                if (container.blockMatrix[1][x][y]) {
+                if (container.blockMatrix[container.currentRotation][x][y]) {
                     var block = new Block(container.color);
                     block.container = container;
                     container.blocks.push(block);
@@ -162,8 +163,33 @@ var grid = {
     },
 
 
-    isBlockContainerRotationPossible : function() {
-        return false;
+    isBlockContainerRotationPossible: function (rotation) {
+        var matrixOld = this.activeBlockContainer.blockMatrix[this.activeBlockContainer.currentRotation];
+        var matrixNew = this.activeBlockContainer.blockMatrix[rotation];
+
+        //get all current blocks and try to fit them into the other
+        var testGridPositions = [];
+        for (var x = this.activeBlockContainer.upperLeftGridCornerPosition.x, xTest = 0;
+            x < this.activeBlockContainer.upperLeftGridCornerPosition.x + matrixNew.length;
+            ++x, ++xTest) {
+            for (var y = this.activeBlockContainer.upperLeftGridCornerPosition.y, yTest = 0;
+                y < this.activeBlockContainer.upperLeftGridCornerPosition.y + matrixNew[0].length;
+                ++y, ++yTest) {
+                if (matrixNew[xTest][yTest] === 1) {
+                    testGridPositions.push({ x: x, y: y });
+                }
+            }
+        }
+
+        var isPossible = true;
+        testGridPositions.forEach(function(pos = { x, y }) {
+            if (pos.x >= grid.size.x || pos.x < 0 || pos.y >= grid.size.y || pos.y < 0 || grid.matrix[pos.x][pos.y] && grid.matrix[pos.x][pos.y].container !== grid.activeBlockContainer) {
+                isPossible &= false;
+                return;
+            }
+        });
+
+        return { isRotationPossible: isPossible, newGridPositions: testGridPositions };
     },
 
     moveActiveBlockContainerDown: function() {
@@ -172,6 +198,7 @@ var grid = {
             canMove &= grid.isMoveBlockDownPossible(block);
         });
         if (canMove) {
+            ++this.activeBlockContainer.upperLeftGridCornerPosition.y; 
             this.activeBlockContainer.blocks.forEach(function(block = Block) {
                 grid.matrix[block.gridPosition.x][block.gridPosition.y] =
                     undefined; //WHY THE FUCK DO I NEED TO CALL GRID.MATRIX AND CAN'T USE THIS.MATRIX??!??????
@@ -200,6 +227,11 @@ var grid = {
             canMove &= grid.isMoveBlockSidewaysPossible(block, toTheRight);
         });
         if (canMove) {
+            if (toTheRight) {
+                ++this.activeBlockContainer.upperLeftGridCornerPosition.x;
+            } else {
+                --this.activeBlockContainer.upperLeftGridCornerPosition.x;
+            }
             this.activeBlockContainer.blocks.forEach(function (block = Block) {
                 grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined; 
             });
@@ -213,11 +245,22 @@ var grid = {
         } 
     },
 
-    rotateActiveBlockContainer : function() {
-        var canRotate = true;
-        this.activeBlockContainer.blocks.forEach(function (block = Block) {
-            canRotate &= grid.isBlockContainerRotationPossible();
-        });
+    rotateActiveBlockContainer: function () {
+        var rotation = (this.activeBlockContainer.currentRotation +1)% 4; // there are just 4 rotations possible
+        var rotationPossibleAndGridPositions = grid.isBlockContainerRotationPossible(rotation);
+        if (rotationPossibleAndGridPositions.isRotationPossible) {
+            console.log("rotation is possible!");
+            this.activeBlockContainer.currentRotation = rotation;
+            this.activeBlockContainer.blocks.forEach(function (block = Block) {
+                grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined;
+            });
+            var positions = rotationPossibleAndGridPositions.newGridPositions;
+            for (var i = 0; i < positions.length; ++i) {
+                grid.activeBlockContainer.blocks[i].setCanvasPosition(grid.getCanvasPositionFromGridPosition(positions[i].x, positions[i].y));
+                grid.matrix[positions[i].x][positions[i].y] = grid.activeBlockContainer.blocks[i];
+                grid.activeBlockContainer.blocks[i].gridPosition = { x: positions[i].x, y: positions[i].y };
+            }
+        }
     },
 
     //this is used for all blocks if a row will be cleared
@@ -259,9 +302,25 @@ function Block(color) {
     this.gridPosition = { x: 0, y: 0 };
     this.color = color;
 
-    this.setCanvasPosition = function({ x, y }) {
+    this.setCanvasPosition = function ({ x, y }) {
+        var originalX = this.canvasPosition.x;
+        var originalY = this.canvasPosition.y;
+
         this.canvasPosition.x = x;
         this.canvasPosition.y = y;
+
+        if (originalX !== this.canvasPosition.x || originalY !== this.canvasPosition.y) {
+            this.dirty = true;
+
+            // add this rectangle to the dirty rectangles array
+            // note: it's the rectangle before the movement was made
+            dirtyRectangles.push({
+                x: originalX,
+                y: originalY,
+                width: this.width,
+                height: this.height
+            });
+        }
     }
     this.draw = function(canvasContext) {
         canvasContext.fillStyle = this.color;
@@ -279,39 +338,28 @@ function Block(color) {
     }
 
     this.move = function(down = false, right = false, left = false) {
-        var originalX = this.canvasPosition.x;
-        var originalY = this.canvasPosition.y;
+        var x = this.canvasPosition.x;
+        var y = this.canvasPosition.y;
 
         if (down) {
-            this.canvasPosition.y += blockSize;
+            y += blockSize;
         }
         if (right) {
-            this.canvasPosition.x += blockSize;
+            x += blockSize;
         } else if (left) {
-            this.canvasPosition.x -= blockSize;
+            x -= blockSize;
         }
 
-        if (originalX !== this.canvasPosition.x || originalY !== this.canvasPosition.y) {
-            this.dirty = true;
-
-            // add this rectangle to the dirty rectangles array
-            // note: it's the rectangle before the movement was made
-            dirtyRectangles.push({
-                x: originalX,
-                y: originalY,
-                width: this.width,
-                height: this.height
-            });
-        }
+        this.setCanvasPosition({x,y});
     }
-    
 }
 
 function BlockContainer(color, params = blockContainerParams) {
-
+    this.currentRotation = 0;
     this.color = color;
     this.blocks = [];
     this.blockMatrix = [];
+    this.upperLeftGridCornerPosition = { x: 0, y: 0 };
 
     this.init = function() {
         for (var i = 0; i < params.rotationBlockMatrix.length; ++i) {
@@ -333,7 +381,6 @@ function BlockContainer(color, params = blockContainerParams) {
             }
         }
     }
-
 }
 
 var blockContainerParams = {
@@ -399,32 +446,8 @@ blockContainer.normalL.rotationBlockMatrix = [
         [0, 1, 0, 0],
         [0, 0, 0, 0]
     ]
-]
+];
 
-//blockContainer.reversedL.blockMatrix = [
-//    [0, 0, 1, 0],
-//    [0, 0, 1, 0],
-//    [0, 1, 1, 0],
-//    [0, 0, 0, 0]
-//];
-//blockContainer.I.blockMatrix = [
-//    [1, 1, 1, 1],
-//    [0, 0, 0, 0],
-//    [0, 0, 0, 0],
-//    [0, 0, 0, 0]
-//];
-//blockContainer.normalS.blockMatrix = [
-//    [0, 1, 1, 0],
-//    [1, 1, 0, 0],
-//    [0, 0, 0, 0],
-//    [0, 0, 0, 0]
-//];
-//blockContainer.reversedS.blockMatrix = [
-//    [1, 1, 0, 0],
-//    [0, 1, 1, 0],
-//    [0, 0, 0, 0],
-//    [0, 0, 0, 0]
-//];
 function start() {
     grid.spawnNewBlockContainer();
 }
@@ -564,8 +587,7 @@ function render() {
 }
 
 function rotate() {
-    // todo
-    console.log("rotate action clicked/pressed");
+    grid.rotateActiveBlockContainer();
 }
 
 function drop() {
