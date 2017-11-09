@@ -111,7 +111,7 @@ var grid = {
             for (var x = 0; x < container.blockMatrix.length; ++x) {
                 //rowBlockCount += container.blockMatrix[x][y];
 
-                if (container.blockMatrix[x][y]) {
+                if (container.blockMatrix[1][x][y]) {
                     var block = new Block(container.color);
                     block.container = container;
                     container.blocks.push(block);
@@ -161,6 +161,11 @@ var grid = {
         return true;
     },
 
+
+    isBlockContainerRotationPossible : function() {
+        return false;
+    },
+
     moveActiveBlockContainerDown: function() {
         var canMove = true;
         this.activeBlockContainer.blocks.forEach(function(block = Block) {
@@ -182,7 +187,7 @@ var grid = {
                 block.container = undefined;
             });
             this.activeBlockContainer = undefined;
-
+            checkForFullRow = true;
             //todo: move this to another location?
             this.spawnNewBlockContainer();
         }
@@ -206,6 +211,13 @@ var grid = {
                 grid.matrix[block.gridPosition.x][block.gridPosition.y] = block;
             });
         } 
+    },
+
+    rotateActiveBlockContainer : function() {
+        var canRotate = true;
+        this.activeBlockContainer.blocks.forEach(function (block = Block) {
+            canRotate &= grid.isBlockContainerRotationPossible();
+        });
     },
 
     //this is used for all blocks if a row will be cleared
@@ -302,17 +314,22 @@ function BlockContainer(color, params = blockContainerParams) {
     this.blockMatrix = [];
 
     this.init = function() {
-        var rotationMatrix = params.rotationBlockMatrix[0];
-        for (var y = 0; y < rotationMatrix.length; ++y) {
-            this.blockMatrix[y] = [];
-            for (var x = 0; x < rotationMatrix[0].length; ++x)
-                this.blockMatrix[y][x] = undefined;
+        for (var i = 0; i < params.rotationBlockMatrix.length; ++i) {
+            this.blockMatrix[i] = [];
+            for (var y = 0; y < params.rotationBlockMatrix[0].length; ++y) {
+                this.blockMatrix[i][y] = [];
+                for (var x = 0; x < params.rotationBlockMatrix[0][0].length; ++x)
+                    this.blockMatrix[i][y][x] = undefined;
+            }
         }
 
         //swap x and y! -> swapped axis makes it easier for container definition!
-        for (var y = 0; y < rotationMatrix.length; ++y) {
-            for (var x = 0; x < rotationMatrix[0].length; ++x) {
-                this.blockMatrix[y][x] = rotationMatrix[x][y];
+
+        for (var i = 0; i < params.rotationBlockMatrix.length; ++i) {
+            for (var y = 0; y < params.rotationBlockMatrix[0].length; ++y) {
+                for (var x = 0; x < params.rotationBlockMatrix[0][0].length; ++x) {
+                    this.blockMatrix[i][y][x] = params.rotationBlockMatrix[i][x][y];
+                }
             }
         }
     }
@@ -420,6 +437,7 @@ var clearRowActivated = false;
 var clearRows = [];
 var timeToClearRow = automaticMoveDownTimespan;
 var elapsedTimeForClearRow = 0;
+var checkForFullRow = false;
 
 function update(deltaTime) {
     if (isGameOver) {
@@ -434,7 +452,7 @@ function update(deltaTime) {
             var minRow = grid.size.y;
             while (clearRows.length > 0) {
                 var y = clearRows.pop();
-                if (minRow > y) {
+                if (minRow < y) {
                     minRow = y;
                 }
                 for (var x = 0; x < grid.size.x; ++x) {
@@ -450,32 +468,42 @@ function update(deltaTime) {
                 }
             }
             //move all blocks down
-            grid.blocksOnField.forEach(function(block = Block) {
-                for (var i = 0; i < rows; ++i) {
-                    //if (block.gridPosition.y > minRow) {
-                        grid.moveBlockDown(block);
-                    //}
+            for (var y = minRow; y > 0; --y) {
+                for (var x = 0; x < grid.size.x; ++x) {
+                    if (grid.matrix[x][y]) {
+                        grid.moveBlockDown(grid.matrix[x][y]);
+                    }
                 }
-            });
+            }
+            //grid.blocksOnField.forEach(function(block = Block) {
+            //    for (var i = 0; i < rows; ++i) {
+            //        if (block.gridPosition.y < minRow) {
+            //            grid.moveBlockDown(block);
+            //        }
+            //    }
+            //});
             clearRowActivated = false;
             elapsedTimeForClearRow = 0;
         }
     }
-    //check if there is a full row and destroy it!
-    for (var y = 0; y < grid.size.y; ++y) {
-        var count = 0;
-        //count === x -> we can stop counting because there is a hole!
-        for (var x = 0; x < grid.size.x && count === x; ++x) {
-            count += grid.matrix[x][y] ? 1 : 0;
-        }
-        //did we find a full row?
-        if (count === grid.size.x) {
-            if ($.inArray(y, clearRows) === -1) {
-                //clear this row
-                clearRows.push(y);
+    if (checkForFullRow) {
+        //check if there is a full row and destroy it!
+        for (var y = 0; y < grid.size.y; ++y) {
+            var count = 0;
+            //count === x -> we can stop counting because there is a hole!
+            for (var x = 0; x < grid.size.x && count === x; ++x) {
+                count += grid.matrix[x][y] ? 1 : 0;
             }
-            clearRowActivated = true;
+            //did we find a full row?
+            if (count === grid.size.x) {
+                if ($.inArray(y, clearRows) === -1) {
+                    //clear this row
+                    clearRows.push(y);
+                }
+                clearRowActivated = true;
+            }
         }
+        checkForFullRow = false;
     }
 
     //automatic move down
