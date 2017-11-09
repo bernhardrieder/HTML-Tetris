@@ -35,7 +35,7 @@ var grid = {
         }
     },
 
-    spawnBlock: function(block = FieldBlock) {
+    spawnBlock: function(block = Block) {
         this.blocksOnField.push(block);
 
         //handle spawn
@@ -43,20 +43,20 @@ var grid = {
             gameOver();
             return;
         }
-        block.init(this.getCanvasPositionFromGridPosition(this.spawnX, 0));
+        block.setCanvasPosition(this.getCanvasPositionFromGridPosition(this.spawnX, 0));
         grid.matrix[this.spawnX][0] = block;
-        block.fieldPosition = { x: this.spawnX, y: 0 };
+        block.gridPosition = { x: this.spawnX, y: 0 };
     },
 
     moveBlockDown : function(block) {
         //check if block can move
-        if (block.fieldPosition.y + 1 >= grid.size.y ||
-            grid.matrix[block.fieldPosition.x][block.fieldPosition.y + 1]) {
+        if (block.gridPosition.y + 1 >= grid.size.y ||
+            grid.matrix[block.gridPosition.x][block.gridPosition.y + 1]) {
             return false;
         }
 
-        grid.matrix[block.fieldPosition.x][block.fieldPosition.y] = undefined;
-        grid.matrix[block.fieldPosition.x][++block.fieldPosition.y] = block;
+        grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined;
+        grid.matrix[block.gridPosition.x][++block.gridPosition.y] = block;
 
         block.moveDown();
         return true;
@@ -97,7 +97,9 @@ function init() {
     for (var x = 0; x <= grid.size.x + 1; ++x) {
         for (var y = 0; y <= grid.size.y; ++y) {
             if (x === 0 || x === grid.size.x + 1 || y === grid.size.y) {
-                new Block(y % 2 === 0 ? "grey" : "black", x * blockSize, y * blockSize).draw(backgroundContext);
+                var block = new Block(y % 2 === 0 ? "grey" : "black");
+                block.setCanvasPosition({ x: x * blockSize, y: y * blockSize });
+                block.draw(backgroundContext);
             }
         }
     }
@@ -108,42 +110,41 @@ function init() {
 
 var blockSize = 30;
 
-function Block(color, x, y) {
+function Block(color) {
     this.width = blockSize;
     this.height = blockSize;
-    this.x = x;
-    this.y = y;
+    this.canvasPosition = { x: 100, y: 100 };
     this.dirty = true;
+    this.container = undefined;
+    this.gridPosition = { x: 0, y: 0 };
+    this.color = color;
 
+    this.setCanvasPosition = function({x,y}) {
+        this.canvasPosition.x = x;
+        this.canvasPosition.y = y;
+    }
     this.draw = function(canvasContext) {
-        canvasContext.fillStyle = color;
-        canvasContext.fillRect(this.x, this.y, this.width, this.height);
+        canvasContext.fillStyle = this.color;
+        canvasContext.fillRect(this.canvasPosition.x, this.canvasPosition.y, this.width, this.height);
         this.dirty = false;
     }
 
     this.destroy = function() {
         dirtyRectangles.push({
-            x: this.x,
-            y: this.y,
+            x: this.canvasPosition.x,
+            y: this.canvasPosition.y,
             width: this.width,
             height: this.height
         });
     }
-}
 
-function FieldBlock(color) {
-    this.fieldPosition = { x: 0, y: 0 };
+    this.moveDown = function () {
+        var originalX = this.canvasPosition.x;
+        var originalY = this.canvasPosition.y;
 
-    this.init = function(canvas = {x, y}) {
-        Block.call(this, color, canvas.x, canvas.y);
-    }
-    this.moveDown = function() {
-        var originalX = this.x;
-        var originalY = this.y;
-        
-        this.y += blockSize;
+        this.canvasPosition.y += blockSize;
 
-        if (originalX !== this.x || originalY !== this.y) {
+        if (originalX !== this.canvasPosition.x || originalY !== this.canvasPosition.y) {
             this.dirty = true;
 
             // add this rectangle to the dirty rectangles array
@@ -158,7 +159,17 @@ function FieldBlock(color) {
     }
 }
 
-FieldBlock.prototype = Block;
+function BlockContainer(color) {
+    //implement block containers!
+
+    this.blocks = [];
+    this.init = function() {
+        this.blocks.forEach(function(block = Block) {
+            block.container = this;
+        });
+    }
+
+}
 
 var blockParams = {
     rotationPivot: { x: 0, y: 0 },
@@ -298,7 +309,7 @@ function update(deltaTime) {
                 }
                 var i = grid.blocksOnField.length;
                 while (i--) {
-                    if (grid.blocksOnField[i] && grid.blocksOnField[i].fieldPosition.y === y) {
+                    if (grid.blocksOnField[i] && grid.blocksOnField[i].gridPosition.y === y) {
                         grid.blocksOnField[i].destroy();
                         grid.blocksOnField[i] = undefined;
                         grid.blocksOnField.splice(i, 1);
@@ -339,7 +350,7 @@ function update(deltaTime) {
     //automatic spawn for testing purposes
     test_elapsedTimeForSpawn += deltaTime;
     if (test_elapsedTimeForSpawn >= test_spawnBlockEvery) {
-        grid.spawnBlock(new FieldBlock("red"));
+        grid.spawnBlock(new Block("red"));
         if (test_x + 1 * test_xIncrementMultiplier >= grid.size.x || test_x + 1 * test_xIncrementMultiplier < 0) {
             test_xIncrementMultiplier *= -1;
         }
@@ -360,6 +371,9 @@ function update(deltaTime) {
 }
 
 function render() {
+    if (isGameOver) {
+        return;
+    }
     while (dirtyRectangles.length > 0) {
         var rect = dirtyRectangles.pop();
 
