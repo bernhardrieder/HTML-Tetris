@@ -31,6 +31,7 @@ var backgroundContext = backgroundCanvas.getContext("2d");
 var fieldCanvas = document.getElementById("main"); 
 var fieldCanvasContext = fieldCanvas.getContext("2d");
 var lastLoopTime = 0;
+var isGameOver = false;
 
 function init() {
     //setup background canvas
@@ -82,6 +83,11 @@ function Block(color, x, y) {
 }
 
 function FieldBlock(color, fieldX, fieldY) {
+    if (field[fieldX, fieldY] === 1) {
+        gameOver();
+        return;
+    }
+
     this.getCanvasPositionFromFieldPosition = function (x, y) {
         return {
             x: blockSize + x * blockSize,
@@ -137,7 +143,9 @@ var elapsedTimeForAutomaticMoveDown = 0;
 var test_spawnBlockEvery = 1000;
 var test_elapsedTimeForSpawn = 0;
 function update(deltaTime) {
-
+    if (isGameOver) {
+        return;
+    }
     elapsedTimeForAutomaticMoveDown += deltaTime;
     if (elapsedTimeForAutomaticMoveDown >= automaticMoveDownTimespan) {
         blocksOnField.forEach(function(item) {
@@ -201,6 +209,10 @@ function moveRight() {
     console.log("moveRight action clicked/pressed");
 }
 
+function gameOver() {
+    console.log("GAME OVER!");
+    isGameOver = true;
+}
 
 /* ~~~~~~ controller code from galaxian game ~~~~~~ */
 // The keycodes that will be mapped when a user presses a button.
