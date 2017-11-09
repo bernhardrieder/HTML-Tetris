@@ -477,8 +477,8 @@ function rotate() {
 }
 
 function drop() {
-    // todo
-    console.log("drop action clicked/pressed");
+    grid.moveActiveBlockContainerDown();
+    elapsedTimeForAutomaticMoveDown = 0;
 }
 
 function moveLeft() {
