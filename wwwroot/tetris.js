@@ -93,8 +93,8 @@ var grid = {
         }
     },
 
-    spawnNewBlockContainer: function() {
-        grid.spawnBlockContainer(new BlockContainer(getRandomColor(), blockContainer.normalL));
+    spawnNewBlockContainer: function () {
+        grid.spawnBlockContainer(new BlockContainer(getRandomColor(), blockContainerLUTs[randomIntFromInterval(0, blockContainerLUTs.length - 1)]));
     },
 
     spawnBlockContainer: function(container = BlockContainer) {
@@ -162,7 +162,6 @@ var grid = {
 
 
     isBlockContainerRotationPossible: function (rotation) {
-        var matrixOld = this.activeBlockContainer.blockMatrix[this.activeBlockContainer.currentRotation];
         var matrixNew = this.activeBlockContainer.blockMatrix[rotation];
 
         //get all current blocks and try to fit them into the other
@@ -352,7 +351,7 @@ function Block(color) {
     }
 }
 
-function BlockContainer(color, params = blockContainerParams) {
+function BlockContainer(color, params = rotationMatrixLUT) {
     this.currentRotation = 0;
     this.color = color;
     this.blocks = [];
@@ -360,91 +359,26 @@ function BlockContainer(color, params = blockContainerParams) {
     this.upperLeftGridCornerPosition = { x: 0, y: 0 };
 
     this.init = function() {
-        for (var i = 0; i < params.rotationBlockMatrix.length; ++i) {
+        for (var i = 0; i < params.length; ++i) {
             this.blockMatrix[i] = [];
-            for (var y = 0; y < params.rotationBlockMatrix[0].length; ++y) {
+            for (var y = 0; y < params[0].length; ++y) {
                 this.blockMatrix[i][y] = [];
-                for (var x = 0; x < params.rotationBlockMatrix[0][0].length; ++x)
+                for (var x = 0; x < params[0][0].length; ++x)
                     this.blockMatrix[i][y][x] = undefined;
             }
         }
 
         //swap x and y! -> swapped axis makes it easier for container definition!
 
-        for (var i = 0; i < params.rotationBlockMatrix.length; ++i) {
-            for (var y = 0; y < params.rotationBlockMatrix[0].length; ++y) {
-                for (var x = 0; x < params.rotationBlockMatrix[0][0].length; ++x) {
-                    this.blockMatrix[i][y][x] = params.rotationBlockMatrix[i][x][y];
+        for (var i = 0; i < params.length; ++i) {
+            for (var y = 0; y < params[0].length; ++y) {
+                for (var x = 0; x < params[0][0].length; ++x) {
+                    this.blockMatrix[i][y][x] = params[i][x][y];
                 }
             }
         }
     }
 }
-
-var blockContainerParams = {
-    //you need to swap x and y!
-    rotationBlockMatrix: [
-        [
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0]
-        ],
-        [
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0]
-        ],
-        [
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0]
-        ],
-        [
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0]
-        ]
-    ]
-}
-var blockContainer = {
-    quadratic: blockContainerParams,
-    normalL: blockContainerParams,
-    reversedL: blockContainerParams,
-    I: blockContainerParams,
-    normalS: blockContainerParams,
-    reversedS: blockContainerParams,
-    T: blockContainerParams
-};
-blockContainer.normalL.rotationBlockMatrix = [
-    [
-        [0, 0, 1, 0],
-        [1, 1, 1, 0],
-        [0, 0, 0, 0],
-        [0, 0, 0, 0]
-    ],
-    [
-        [0, 1, 0, 0],
-        [0, 1, 0, 0],
-        [0, 1, 1, 0],
-        [0, 0, 0, 0]
-    ],
-    [
-        [0, 0, 0, 0],
-        [1, 1, 1, 0],
-        [1, 0, 0, 0],
-        [0, 0, 0, 0]
-    ],
-    [
-        [1, 1, 0, 0],
-        [0, 1, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 0, 0]
-    ]
-];
 
 function startGame() {
     //clear grid;
@@ -667,3 +601,238 @@ document.onkeyup = function(e) {
         KEY_STATUS[KEY_CODES[keyCode]].pressed = false;
     }
 }
+
+/* ~~~~~~ look up tables for block containers ~~~~~~ */
+//LUT template
+var rotationMatrixLUT = [
+    [
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ]
+];
+
+var blockContainerList = {
+    normalL : rotationMatrixLUT,
+    reversedL: rotationMatrixLUT,
+    I: rotationMatrixLUT,
+    cube: rotationMatrixLUT,
+    normalS: rotationMatrixLUT,
+    reversedS: rotationMatrixLUT,
+    T: rotationMatrixLUT
+};
+
+var blockContainerLUTs = [];
+
+for (var i = 0; i <= 6; i++) {
+    blockContainerLUTs[i] = rotationMatrixLUT;
+}
+//from https://i.stack.imgur.com/JLRFu.png
+// normal L
+blockContainerLUTs[0] = [
+    [
+        [0, 0, 1, 0],
+        [1, 1, 1, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 1, 1, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 0, 0, 0],
+        [1, 1, 1, 0],
+        [1, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [1, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 0]
+    ]
+];
+// reversed L
+blockContainerLUTs[1] = [
+    [
+        [1, 0, 0, 0],
+        [1, 1, 1, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 1, 1, 0],
+        [0, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 0, 0, 0],
+        [1, 1, 1, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 1, 0, 0],
+        [0, 1, 0, 0],
+        [1, 1, 0, 0],
+        [0, 0, 0, 0]
+    ]
+];
+// I
+blockContainerLUTs[2] = [
+    [
+        [0, 0, 0, 0],
+        [1, 1, 1, 1],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 0, 1, 0],
+        [0, 0, 1, 0],
+        [0, 0, 1, 0],
+        [0, 0, 1, 0]
+    ],
+    [
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [1, 1, 1, 1],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 1, 0, 0]
+    ]
+];
+// cube
+blockContainerLUTs[3] = [
+    [
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ]
+];
+// normal S
+blockContainerLUTs[4] = [
+    [
+        [0, 1, 1, 0],
+        [1, 1, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 1, 0, 0],
+        [0, 1, 1, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 0, 0, 0],
+        [0, 1, 1, 0],
+        [1, 1, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [1, 0, 0, 0],
+        [1, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 0]
+    ]
+];
+// reversed S
+blockContainerLUTs[5] = [
+    [
+        [1, 1, 0, 0],
+        [0, 1, 1, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 0, 1, 0],
+        [0, 1, 1, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 0, 0, 0],
+        [1, 1, 0, 0],
+        [0, 1, 1, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 1, 0, 0],
+        [1, 1, 0, 0],
+        [1, 0, 0, 0],
+        [0, 0, 0, 0]
+    ]
+];
+// T
+blockContainerLUTs[6] = [
+    [
+        [0, 1, 0, 0],
+        [1, 1, 1, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 1, 0, 0],
+        [0, 1, 1, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 0, 0, 0],
+        [1, 1, 1, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 1, 0, 0],
+        [1, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 0]
+    ]
+];
