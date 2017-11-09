@@ -13,10 +13,33 @@
 
 /* ~~~~~~ actual game ~~~~~~ */
 
+var fieldSize = {
+    x: 10,
+    y: 20
+}
+var field = [fieldSize.x, fieldSize.y];
+for (x = 0; x < fieldSize.x; ++x) {
+    for (y = 0; y < fieldSize.y; ++y) {
+        field[x, y] = 0; //no block on it
+    }
+}
+
+var dirtyRectangles = [];
+var blocksOnField = [];
+var backgroundCanvas = document.getElementById("background");
+var backgroundContext = backgroundCanvas.getContext("2d");
+var fieldCanvas = document.getElementById("main"); 
+var fieldCanvasContext = fieldCanvas.getContext("2d");
 var lastLoopTime = 0;
 
 function init() {
-    start();
+    //setup background canvas
+    backgroundCanvas.width = window.innerWidth;
+    backgroundCanvas.height = window.innerHeight;
+   
+    //setup main canvas
+    fieldCanvas.width = window.innerWidth;
+    fieldCanvas.height = window.innerHeight;
 
     //setup game loop
     var loop = function (time = 0) {
@@ -24,10 +47,22 @@ function init() {
         lastLoopTime = time;
         update(deltaTime);
         render();
-        window.requestAnimationFrame(loop, gameArea.backgroundCanvas);
+        window.requestAnimationFrame(loop, backgroundCanvas);
     }
     //activate game loop
-    window.requestAnimationFrame(loop, gameArea.backgroundCanvas);
+    window.requestAnimationFrame(loop, backgroundCanvas);
+
+    //setup walls
+    for (var x = 0; x <= fieldSize.x + 1; ++x) {
+        for (var y = 0; y <= fieldSize.y; ++y) {
+            if (x === 0 || x === fieldSize.x + 1 || y === fieldSize.y) {
+                new Block(y % 2 === 0 ? "grey" : "black", x * blockSize, y * blockSize).draw(backgroundContext);
+            }
+        }
+    }
+
+    //start actual game
+    start();
 }
 
 var blockSize = 30;
@@ -44,9 +79,33 @@ function Block(color, x, y) {
         canvasContext.fillRect(this.x, this.y, this.width, this.height);
         this.dirty = false;
     }
+}
+
+function FieldBlock(color, fieldX, fieldY) {
+    this.getCanvasPositionFromFieldPosition = function (x, y) {
+        return {
+            x: blockSize + x * blockSize,
+            y: y * blockSize
+        }
+    }
+
+    var pos = this.getCanvasPositionFromFieldPosition(fieldX, fieldY);
+    Block.call(this, color, pos.x, pos.y);
+
+    this.fieldPosition = { x: fieldX, y: fieldY}; 
+    field[fieldX, fieldY] = 1;
+
     this.moveDown = function () {
+        //check if block can move
+        if (this.fieldPosition.y + 1 >= fieldSize.y || field[this.fieldPosition.x, this.fieldPosition.y + 1] === 1) {
+            return;
+        }
+
         var originalX = this.x;
         var originalY = this.y;
+
+        field[this.fieldPosition.x, this.fieldPosition.y++] = 0;
+        field[this.fieldPosition.x, this.fieldPosition.y] = 1;
 
         this.y += blockSize;
 
@@ -55,95 +114,42 @@ function Block(color, x, y) {
 
             // add this rectangle to the dirty rectangles array
             // note: it's the rectangle before the movement was made
-            gameArea.dirtyRectangles.push({
+            dirtyRectangles.push({
                 x: originalX,
                 y: originalY,
                 width: this.width,
                 height: this.height
             });
         }
-
-        //return true;
-
-        //return false on collision! -> check fieldSize
     }
+
+   
 }
-
-var fieldSize = {
-    x : 10,
-    y : 20
-}
-var field = [fieldSize.x][fieldSize.y];
-
-
-var gameArea = {
-    dirtyRectangles: [],
-    blocks: [],
-    backgroundCanvas: document.getElementById("background"),
-    canvas: document.getElementById("main"),
-
-    init: function() {
-        //setup background canvas
-        this.backgroundCanvas.width = window.innerWidth;
-        this.backgroundCanvas.height = window.innerHeight;
-        this.backgroundContext = this.backgroundCanvas.getContext("2d");
-
-        //setup walls
-        for (var x = 0; x <= fieldSize.x+1; ++x) {
-            for (var y = 0; y <= fieldSize.y; ++y) {
-                if (x === 0 || x === fieldSize.x+1 || y === fieldSize.y) {
-                    new Block(y % 2 === 0 ? "grey" : "black", x * blockSize, y * blockSize).draw(this.backgroundContext);
-                }
-            }
-        }
-
-        //setup main canvas
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-        this.context = this.canvas.getContext("2d");
-    },
-
-    draw: function() {
-        var i, dirtyRectangleCount = this.dirtyRectangles.length;
-        for (i = 0; i < dirtyRectangleCount; i += 1) {
-            var rect = this.dirtyRectangles[i];
-
-            // clear this rectangle from the canvas
-            this.context.clearRect(rect.x, rect.y, rect.width, rect.height);
-        }
-        // clear the dirty rectangle list
-        this.dirtyrectangles = [];
-
-        // then redraw any dirty sprites
-        var blockCount = this.blocks.length;
-        for (i = 0; i < blockCount; i += 1) {
-            var block = this.blocks[i];
-
-            // is the sprite dirty?
-            if (block.dirty) {
-                block.draw(this.context); // pass canvas context to the sprite
-            }
-        }
-    }
-}
-
-
+FieldBlock.prototype = Block;
 
 function start() {
-    gameArea.init();
-    gameArea.blocks.push(new Block("red", blockSize * 1, 0));
+    blocksOnField.push(new FieldBlock("red", 0, 0));
 }
 
 var automaticMoveDownTimespan = 300; // I HAVE NO FUCKING CLUE WHAT DELTATIME IS?! ->> 300 is approx. around 1 second???
 var elapsedTimeForAutomaticMoveDown = 0;
+
+var test_spawnBlockEvery = 1000;
+var test_elapsedTimeForSpawn = 0;
 function update(deltaTime) {
 
     elapsedTimeForAutomaticMoveDown += deltaTime;
     if (elapsedTimeForAutomaticMoveDown >= automaticMoveDownTimespan) {
-        gameArea.blocks.forEach(function(item) {
+        blocksOnField.forEach(function(item) {
             item.moveDown();
         });
         elapsedTimeForAutomaticMoveDown = 0;
+    }
+
+    test_elapsedTimeForSpawn += deltaTime;
+    if (test_elapsedTimeForSpawn >= test_spawnBlockEvery) {
+        blocksOnField.push(new FieldBlock("red", 0, 0));
+        test_elapsedTimeForSpawn = 0;
     }
 
     //key mapping - the held shit doesn't work -> our update method deltatime is too fast -> consider other method!
@@ -156,15 +162,24 @@ function update(deltaTime) {
     } else if (KEY_STATUS.down.pressed && !KEY_STATUS.down.held) {
         drop();
     }
-
 }
 
 function render() {
-    gameArea.draw();
+    var i, dirtyRectangleCount = dirtyRectangles.length;
+    for (i = 0; i < dirtyRectangleCount; i += 1) {
+        var rect = dirtyRectangles.pop();
+
+        // clear this rectangle from the canvas
+        fieldCanvasContext.clearRect(rect.x, rect.y, rect.width, rect.height);
+    }
+
+    //render dirty blocks
+    blocksOnField.forEach(function(block) {
+        if (block.dirty) {
+            block.draw(fieldCanvasContext);
+        }
+    });
 }
-
-
-
 
 function rotate() {
     // todo
