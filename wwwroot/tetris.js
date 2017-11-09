@@ -323,7 +323,7 @@ var grid = {
     },
 
     //this is used for all blocks if a row will be cleared
-    moveBlockDown: function(block) {
+    moveBlockDown: function(block, yDelta = 1) {
         //check if block can move
         if (!block || block.container ||
             block.gridPosition.y + 1 >= this.size.y ||
@@ -332,7 +332,7 @@ var grid = {
         }
 
         this.matrix[block.gridPosition.x][block.gridPosition.y] = undefined;
-        this.matrix[block.gridPosition.x][++block.gridPosition.y] = block;
+        this.matrix[block.gridPosition.x][block.gridPosition.y + yDelta] = block;
 
         block.move(true, false,false);
     },
@@ -446,6 +446,7 @@ function startGame() {
     grid.blocksOnField.forEach(function (block) {
         block.destroy();
     });
+    grid.blocksOnField = [];
     grid.init();
 
     //reset game over
@@ -459,11 +460,9 @@ var automaticMoveDownTimespan = 300; // I HAVE NO FUCKING CLUE HOW MUCH TIME THI
 var elapsedTimeForAutomaticMoveDown = 0;
 
 var clearRowActivated = false;
-var clearRows = [];
-var timeToClearRow = automaticMoveDownTimespan;
-var elapsedTimeForClearRow = 0;
+var rowsToClear = [];
 var checkForFullRow = false;
-
+var lowestRowToClear = 0;
 function update(deltaTime) {
     if (isGameOver) {
         if (KEY_STATUS.enter.pressed) {
@@ -482,10 +481,11 @@ function update(deltaTime) {
             }
             //did we find a full row?
             if (count === grid.size.x) {
-                if ($.inArray(y, clearRows) === -1) {
+                //this checks if y is already in the rowsToClear array!
+                //if ($.inArray(y, rowsToClear) === -1) {
                     //clear this row
-                    clearRows.push(y);
-                }
+                    rowsToClear.push(y);
+                //}
                 clearRowActivated = true;
             }
         }
@@ -494,45 +494,38 @@ function update(deltaTime) {
 
     //should clear some rows?
     if (clearRowActivated) {
-        elapsedTimeForClearRow += deltaTime;
-        if (elapsedTimeForClearRow >= timeToClearRow) {
-            var rows = clearRows.length;
-            var minRow = grid.size.y;
-            while (clearRows.length > 0) {
-                var y = clearRows.pop();
-                if (minRow < y) {
-                    minRow = y;
-                }
-                for (var x = 0; x < grid.size.x; ++x) {
-                    grid.matrix[x][y] = undefined;
-                }
-                var i = grid.blocksOnField.length;
-                while (i--) {
-                    if (grid.blocksOnField[i] && grid.blocksOnField[i].gridPosition.y === y) {
-                        grid.blocksOnField[i].destroy();
-                        grid.blocksOnField[i] = undefined;
-                        grid.blocksOnField.splice(i, 1);
-                    }
+        var lowestRowToClear = 0;
+        var rowsToClearTmp = rowsToClear.length;
+        while (rowsToClear.length > 0) {
+            var rowToClear = rowsToClear.pop();
+            if (lowestRowToClear < rowToClear) {
+                lowestRowToClear = rowToClear;
+            }
+            //clears the row in the grid.matrix
+            for (var x = 0; x < grid.size.x; ++x) {
+                grid.matrix[x][rowToClear] = undefined;
+            }
+
+            //destroys the row
+            var i = grid.blocksOnField.length;
+            while (i--) {
+                if (grid.blocksOnField[i] && grid.blocksOnField[i].gridPosition.y === rowToClear) {
+                    grid.blocksOnField[i].destroy();
+                    grid.blocksOnField[i] = undefined;
+                    grid.blocksOnField.splice(i, 1);
                 }
             }
-            //move all blocks down
-            for (var y = minRow; y > 0; --y) {
-                for (var x = 0; x < grid.size.x; ++x) {
-                    if (grid.matrix[x][y]) {
-                        grid.moveBlockDown(grid.matrix[x][y]);
-                    }
-                }
-            }
-            //grid.blocksOnField.forEach(function(block = Block) {
-            //    for (var i = 0; i < rows; ++i) {
-            //        if (block.gridPosition.y < minRow) {
-            //            grid.moveBlockDown(block);
-            //        }
-            //    }
-            //});
-            clearRowActivated = false;
-            elapsedTimeForClearRow = 0;
         }
+        //move all blocks down
+        for (var y = lowestRowToClear; y >= 0; --y) {
+            for (var x = 0; x < grid.size.x; ++x) {
+                if (grid.matrix[x][y]) {
+                    grid.moveBlockDown(grid.matrix[x][y]);
+                }
+            }
+        }
+        clearRowActivated = false;
+        
     }
 
     //automatic move down
@@ -586,7 +579,6 @@ function render() {
             block.draw(gridCanvasContext);
         }
     });
-
 }
 
 function rotate() {
