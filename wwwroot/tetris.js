@@ -22,8 +22,6 @@ var lastLoopTime = 0;
 var isGameOver = false;
 
 function init() {
-    grid.init();
-
     //setup background canvas
     backgroundCanvas.width = window.innerWidth;
     backgroundCanvas.height = window.innerHeight;
@@ -55,7 +53,7 @@ function init() {
     }
 
     //start actual game
-    start();
+    startGame();
 }
 
 function randomIntFromInterval(min, max) {
@@ -448,7 +446,17 @@ blockContainer.normalL.rotationBlockMatrix = [
     ]
 ];
 
-function start() {
+function startGame() {
+    //clear grid;
+    grid.blocksOnField.forEach(function (block) {
+        block.destroy();
+    });
+    grid.init();
+
+    //reset game over
+    isGameOver = false;
+
+    //spawn first stone
     grid.spawnNewBlockContainer();
 }
 
@@ -464,6 +472,9 @@ var checkForFullRow = false;
 
 function update(deltaTime) {
     if (isGameOver) {
+        if (KEY_STATUS.enter.pressed) {
+            startGame();
+        }
         return;
     }
 
@@ -537,7 +548,7 @@ function update(deltaTime) {
     }
 
 
-    grid.debug();
+    //grid.debug();
     //key mapping - the held shit doesn't work -> our update method deltatime is too fast -> consider other method!
     if (KEY_STATUS.left.pressed && !inputLock.left) {
         moveLeft();
@@ -552,9 +563,9 @@ function update(deltaTime) {
     inputLock.left = KEY_STATUS.left.pressed;
     inputLock.right = KEY_STATUS.right.pressed;
     inputLock.rotate = KEY_STATUS.up.pressed;
-    inputLock.drop = KEY_STATUS.down.pressed;
+    //inputLock.drop = KEY_STATUS.down.pressed;
 
-    grid.debug();
+    //grid.debug();
 }
 
 var inputLock = {
@@ -565,10 +576,6 @@ var inputLock = {
 }
 
 function render() {
-    if (isGameOver) {
-        return;
-    }
-
     //clear dirty rectangles
     while (dirtyRectangles.length > 0) {
         var rect = dirtyRectangles.pop();
@@ -612,6 +619,7 @@ function gameOver() {
 // The keycodes that will be mapped when a user presses a button.
 // Original code by Doug McInnes
 KEY_CODES = {
+    13: "enter",
     37: "left",
     38: "up",
     39: "right",
