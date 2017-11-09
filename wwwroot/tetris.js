@@ -16,8 +16,11 @@
 var grid = {
     size: { x: 10, y: 20 },
     matrix: [],
+    blocksOnField: [],
+    spawnX: 0,
 
-    init: function() {
+    init: function () {
+        this.spawnX = this.size.x / 2;
         for (var x = 0; x < this.size.x; ++x) {
             this.matrix[x] = [];
             for (var y = 0; y < this.size.y; ++y)
@@ -25,13 +28,42 @@ var grid = {
         }
     },
 
-    moveBlock : function(block) {
+    getCanvasPositionFromGridPosition: function(x, y) {
+        return {
+            x: blockSize /*wall*/+ x * blockSize,
+            y: y * blockSize
+        }
+    },
+
+    spawnBlock: function(block = FieldBlock) {
+        this.blocksOnField.push(block);
+
+        //handle spawn
+        if (grid.matrix[this.spawnX][0]) {
+            gameOver();
+            return;
+        }
+        block.init(this.getCanvasPositionFromGridPosition(this.spawnX, 0));
+        grid.matrix[this.spawnX][0] = block;
+        block.fieldPosition = { x: this.spawnX, y: 0 };
+    },
+
+    moveBlockDown : function(block) {
+        //check if block can move
+        if (block.fieldPosition.y + 1 >= grid.size.y ||
+            grid.matrix[block.fieldPosition.x][block.fieldPosition.y + 1]) {
+            return false;
+        }
+
+        grid.matrix[block.fieldPosition.x][block.fieldPosition.y] = undefined;
+        grid.matrix[block.fieldPosition.x][++block.fieldPosition.y] = block;
+
+        block.moveDown();
         return true;
     }
 }
 
 var dirtyRectangles = [];
-var blocksOnField = [];
 var backgroundCanvas = document.getElementById("background");
 var backgroundContext = backgroundCanvas.getContext("2d");
 var fieldCanvas = document.getElementById("main");
@@ -99,38 +131,16 @@ function Block(color, x, y) {
     }
 }
 
-function FieldBlock(color, fieldX, fieldY) {
-    if (grid.matrix[fieldX][fieldY]) {
-        gameOver();
-        return;
+function FieldBlock(color) {
+    this.fieldPosition = { x: 0, y: 0 };
+
+    this.init = function(canvas = {x, y}) {
+        Block.call(this, color, canvas.x, canvas.y);
     }
-
-    this.getCanvasPositionFromFieldPosition = function(x, y) {
-        return {
-            x: blockSize + x * blockSize,
-            y: y * blockSize
-        }
-    }
-
-    var pos = this.getCanvasPositionFromFieldPosition(fieldX, fieldY);
-    Block.call(this, color, pos.x, pos.y);
-
-    this.fieldPosition = { x: fieldX, y: fieldY };
-    grid.matrix[fieldX][fieldY] = this;
-
     this.moveDown = function() {
-        //check if block can move
-        if (this.fieldPosition.y + 1 >= grid.size.y ||
-            grid.matrix[this.fieldPosition.x][this.fieldPosition.y + 1]) {
-            return;
-        }
-
         var originalX = this.x;
         var originalY = this.y;
-
-        grid.matrix[this.fieldPosition.x][this.fieldPosition.y] = undefined;
-        grid.matrix[this.fieldPosition.x][++this.fieldPosition.y] = this;
-
+        
         this.y += blockSize;
 
         if (originalX !== this.x || originalY !== this.y) {
@@ -146,29 +156,123 @@ function FieldBlock(color, fieldX, fieldY) {
             });
         }
     }
-
-
 }
 
 FieldBlock.prototype = Block;
 
 var blockParams = {
-    blocks: 0,
-    rotationPivot: { x: 0, y: 0 }
+    rotationPivot: { x: 0, y: 0 },
+    blockMatrix : [
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    rotationBlockMatrix: [[
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ]
+    ]
 }
-var quadratic = {
-    tets : 0
+var blockItems = {
+    quadratic: blockParams,
+    normalL: blockParams,
+    reversedL: blockParams,
+    I: blockParams,
+    normalS: blockParams,
+    reversedS: blockParams,
+    T: blockParams
 };
-quadratic.prototype = blockParams;
+//blockItems.quadratic.blockMatrix = [
+//    [0, 1, 1, 0],
+//    [0, 1, 1, 0],
+//    [0, 0, 0, 0],
+//    [0, 0, 0, 0]
+//];
+blockItems.normalL.blockMatrix = [
+    [0, 1, 0, 0],
+    [0, 1, 0, 0],
+    [0, 1, 1, 0],
+    [0, 0, 0, 0]
+];
 
+blockItems.normalL.rotationBlockMatrix = [[
+        [0, 0, 1, 0],
+        [1, 1, 1, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 1, 1, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [0, 0, 0, 0],
+        [1, 1, 1, 0],
+        [1, 0, 0, 0],
+        [0, 0, 0, 0]
+    ],
+    [
+        [1, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 0]
+    ]
+]
+//blockItems.reversedL.blockMatrix = [
+//    [0, 0, 1, 0],
+//    [0, 0, 1, 0],
+//    [0, 1, 1, 0],
+//    [0, 0, 0, 0]
+//];
+//blockItems.I.blockMatrix = [
+//    [1, 1, 1, 1],
+//    [0, 0, 0, 0],
+//    [0, 0, 0, 0],
+//    [0, 0, 0, 0]
+//];
+//blockItems.normalS.blockMatrix = [
+//    [0, 1, 1, 0],
+//    [1, 1, 0, 0],
+//    [0, 0, 0, 0],
+//    [0, 0, 0, 0]
+//];
+//blockItems.reversedS.blockMatrix = [
+//    [1, 1, 0, 0],
+//    [0, 1, 1, 0],
+//    [0, 0, 0, 0],
+//    [0, 0, 0, 0]
+//];
 function start() {
 
 }
 
-var automaticMoveDownTimespan = 100; // I HAVE NO FUCKING CLUE WHAT DELTATIME IS?! ->> 300 is approx. around 1 second???
+var automaticMoveDownTimespan = 300; // I HAVE NO FUCKING CLUE HOW MUCH TIME THIS IS?! ->> cause a value of 300 is approx. around one second???
 var elapsedTimeForAutomaticMoveDown = 0;
 
-var test_spawnBlockEvery = 100;
+var test_spawnBlockEvery = automaticMoveDownTimespan*2;
 var test_elapsedTimeForSpawn = 0;
 var test_x = 0;
 var test_xIncrementMultiplier = 1;
@@ -192,12 +296,12 @@ function update(deltaTime) {
                 for (var x = 0; x < grid.size.x; ++x) {
                     grid.matrix[x][y] = undefined;
                 }
-                var i = blocksOnField.length;
+                var i = grid.blocksOnField.length;
                 while (i--) {
-                    if (blocksOnField[i] && blocksOnField[i].fieldPosition.y === y) {
-                        blocksOnField[i].destroy();
-                        blocksOnField[i] = undefined;
-                        blocksOnField.splice(i, 1);
+                    if (grid.blocksOnField[i] && grid.blocksOnField[i].fieldPosition.y === y) {
+                        grid.blocksOnField[i].destroy();
+                        grid.blocksOnField[i] = undefined;
+                        grid.blocksOnField.splice(i, 1);
                     }
                 }
             }
@@ -225,8 +329,9 @@ function update(deltaTime) {
     //automatic move down
     elapsedTimeForAutomaticMoveDown += deltaTime;
     if (elapsedTimeForAutomaticMoveDown >= automaticMoveDownTimespan) {
-        blocksOnField.forEach(function(item) {
-            item.moveDown();
+        grid.blocksOnField.forEach(function (item) {
+            grid.moveBlockDown(item);
+            //item.moveDown();
         });
         elapsedTimeForAutomaticMoveDown = 0;
     }
@@ -234,7 +339,7 @@ function update(deltaTime) {
     //automatic spawn for testing purposes
     test_elapsedTimeForSpawn += deltaTime;
     if (test_elapsedTimeForSpawn >= test_spawnBlockEvery) {
-        blocksOnField.push(new FieldBlock("red", test_x, 0));
+        grid.spawnBlock(new FieldBlock("red"));
         if (test_x + 1 * test_xIncrementMultiplier >= grid.size.x || test_x + 1 * test_xIncrementMultiplier < 0) {
             test_xIncrementMultiplier *= -1;
         }
@@ -263,7 +368,7 @@ function render() {
     }
 
     //render dirty blocks delete
-    blocksOnField.forEach(function(block) {
+    grid.blocksOnField.forEach(function(block) {
         if (block.dirty) {
             block.draw(fieldCanvasContext);
         }
