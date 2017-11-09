@@ -17,9 +17,10 @@ var grid = {
     size: { x: 10, y: 20 },
     matrix: [],
     blocksOnField: [],
+    activeBlockContainer: 0,
     spawnX: 0,
 
-    init: function () {
+    init: function() {
         this.spawnX = this.size.x / 2;
         for (var x = 0; x < this.size.x; ++x) {
             this.matrix[x] = [];
@@ -30,36 +31,103 @@ var grid = {
 
     getCanvasPositionFromGridPosition: function(x, y) {
         return {
-            x: blockSize /*wall*/+ x * blockSize,
+            x: blockSize /*wall*/ + x * blockSize,
             y: y * blockSize
         }
     },
 
-    spawnBlock: function(block = Block) {
-        this.blocksOnField.push(block);
-
-        //handle spawn
-        if (grid.matrix[this.spawnX][0]) {
-            gameOver();
-            return;
-        }
-        block.setCanvasPosition(this.getCanvasPositionFromGridPosition(this.spawnX, 0));
-        grid.matrix[this.spawnX][0] = block;
-        block.gridPosition = { x: this.spawnX, y: 0 };
+    spawnNewBlockContainer : function() {
+        grid.spawnBlockContainer(new BlockContainer("red", blockContainer.normalL));
     },
 
-    moveBlockDown : function(block) {
-        //check if block can move
-        if (block.gridPosition.y + 1 >= grid.size.y ||
-            grid.matrix[block.gridPosition.x][block.gridPosition.y + 1]) {
-            return false;
+    spawnBlockContainer: function (container = BlockContainer) {
+        this.activeBlockContainer = container;
+        container.init();
+
+        var triggerGameOver = false;
+        var spawnX = (this.size.x - container.blockMatrix.length) / 2;
+        for (var y = 0; y < container.blockMatrix[0].length; ++y) {
+            //var rowBlockCount = 0;
+
+            for (var x = 0; x < container.blockMatrix.length; ++x) {
+                //rowBlockCount += container.blockMatrix[x][y];
+
+                if (container.blockMatrix[x][y]) {
+                    var block = new Block(container.color);
+                    block.container = container;
+                    container.blocks.push(block);
+                    this.blocksOnField.push(block);
+
+
+                    block.setCanvasPosition(this.getCanvasPositionFromGridPosition(spawnX + x, y));
+                    if (this.matrix[spawnX + x][y]) {
+                        triggerGameOver = true;
+                    }
+                    this.matrix[spawnX + x][y] = block;
+                    block.gridPosition = { x: spawnX + x, y: y };
+                }
+
+            }
         }
 
-        grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined;
-        grid.matrix[block.gridPosition.x][++block.gridPosition.y] = block;
+        if (triggerGameOver) {
+            gameOver();
+        }
+
+    },
+    isMoveBlockDownPossible: function (block = Block) {
+
+        var next = this.matrix[block.gridPosition.x][block.gridPosition.y + 1];
+        //check if block can move
+        if (block.gridPosition.y + 1 >= this.size.y) {
+            return false;
+        } else if (next && next.container === block.container) {
+            return true;
+        } else if (next) {
+            return false;
+        }
+        return true;
+    },
+
+    moveActiveBlockContainerDown: function () {
+        var container = this.activeBlockContainer;
+        var canMove = true;
+        container.blocks.forEach(function(block = Block) {
+            canMove &= grid.isMoveBlockDownPossible(block);
+        });
+        if (canMove) {
+            this.activeBlockContainer.blocks.forEach(function (block = Block) {
+                grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined; //WHY THE FUCK DO I NEED TO CALL GRID.MATRIX AND CAN'T USE THIS.MATRIX??!??????
+            });
+            this.activeBlockContainer.blocks.forEach(function(block = Block) {
+                block.moveDown();
+            });
+            this.activeBlockContainer.blocks.forEach(function(block = Block) {
+                grid.matrix[block.gridPosition.x][++block.gridPosition.y] = block;
+            });
+        } else {
+            this.activeBlockContainer.blocks.forEach(function (block = Block) {
+                block.container = undefined;
+            });
+            this.activeBlockContainer = undefined;
+
+            //todo: move this to another location?
+            this.spawnNewBlockContainer();
+        }
+        
+    },
+
+    moveBlockDown: function (block) {
+        //check if block can move
+        if (block.container || block.gridPosition.y + 1 >= this.size.y ||
+            this.matrix[block.gridPosition.x][block.gridPosition.y + 1]) {
+            return;
+        }
+
+        this.matrix[block.gridPosition.x][block.gridPosition.y] = undefined;
+        this.matrix[block.gridPosition.x][++block.gridPosition.y] = block;
 
         block.moveDown();
-        return true;
     }
 }
 
@@ -106,6 +174,8 @@ function init() {
 
     //start actual game
     start();
+
+    grid.spawnNewBlockContainer();
 }
 
 var blockSize = 30;
@@ -119,7 +189,7 @@ function Block(color) {
     this.gridPosition = { x: 0, y: 0 };
     this.color = color;
 
-    this.setCanvasPosition = function({x,y}) {
+    this.setCanvasPosition = function({ x, y }) {
         this.canvasPosition.x = x;
         this.canvasPosition.y = y;
     }
@@ -138,7 +208,7 @@ function Block(color) {
         });
     }
 
-    this.moveDown = function () {
+    this.moveDown = function() {
         var originalX = this.canvasPosition.x;
         var originalY = this.canvasPosition.y;
 
@@ -159,27 +229,34 @@ function Block(color) {
     }
 }
 
-function BlockContainer(color) {
-    //implement block containers!
+function BlockContainer(color, params = blockContainerParams) {
 
+    this.color = color;
     this.blocks = [];
+    this.blockMatrix = [];
+
     this.init = function() {
-        this.blocks.forEach(function(block = Block) {
-            block.container = this;
-        });
+        var rotationMatrix = params.rotationBlockMatrix[0];
+        for (var y = 0; y < rotationMatrix.length; ++y) {
+            this.blockMatrix[y] = [];
+            for (var x = 0; x < rotationMatrix[0].length; ++x)
+                this.blockMatrix[y][x] = undefined;
+        }
+
+        //swap x and y! -> swapped axis makes it easier for container definition!
+        for (var y = 0; y < rotationMatrix.length; ++y) {
+            for (var x = 0; x < rotationMatrix[0].length; ++x) {
+                this.blockMatrix[y][x] = rotationMatrix[x][y];
+            }
+        }
     }
 
 }
 
-var blockParams = {
-    rotationPivot: { x: 0, y: 0 },
-    blockMatrix : [
-        [0, 0, 0, 0],
-        [0, 0, 0, 0],
-        [0, 0, 0, 0],
-        [0, 0, 0, 0]
-    ],
-    rotationBlockMatrix: [[
+var blockContainerParams = {
+    //you need to swap x and y!
+    rotationBlockMatrix: [
+        [
             [0, 0, 0, 0],
             [0, 0, 0, 0],
             [0, 0, 0, 0],
@@ -205,29 +282,17 @@ var blockParams = {
         ]
     ]
 }
-var blockItems = {
-    quadratic: blockParams,
-    normalL: blockParams,
-    reversedL: blockParams,
-    I: blockParams,
-    normalS: blockParams,
-    reversedS: blockParams,
-    T: blockParams
+var blockContainer = {
+    quadratic: blockContainerParams,
+    normalL: blockContainerParams,
+    reversedL: blockContainerParams,
+    I: blockContainerParams,
+    normalS: blockContainerParams,
+    reversedS: blockContainerParams,
+    T: blockContainerParams
 };
-//blockItems.quadratic.blockMatrix = [
-//    [0, 1, 1, 0],
-//    [0, 1, 1, 0],
-//    [0, 0, 0, 0],
-//    [0, 0, 0, 0]
-//];
-blockItems.normalL.blockMatrix = [
-    [0, 1, 0, 0],
-    [0, 1, 0, 0],
-    [0, 1, 1, 0],
-    [0, 0, 0, 0]
-];
-
-blockItems.normalL.rotationBlockMatrix = [[
+blockContainer.normalL.rotationBlockMatrix = [
+    [
         [0, 0, 1, 0],
         [1, 1, 1, 0],
         [0, 0, 0, 0],
@@ -252,25 +317,26 @@ blockItems.normalL.rotationBlockMatrix = [[
         [0, 0, 0, 0]
     ]
 ]
-//blockItems.reversedL.blockMatrix = [
+
+//blockContainer.reversedL.blockMatrix = [
 //    [0, 0, 1, 0],
 //    [0, 0, 1, 0],
 //    [0, 1, 1, 0],
 //    [0, 0, 0, 0]
 //];
-//blockItems.I.blockMatrix = [
+//blockContainer.I.blockMatrix = [
 //    [1, 1, 1, 1],
 //    [0, 0, 0, 0],
 //    [0, 0, 0, 0],
 //    [0, 0, 0, 0]
 //];
-//blockItems.normalS.blockMatrix = [
+//blockContainer.normalS.blockMatrix = [
 //    [0, 1, 1, 0],
 //    [1, 1, 0, 0],
 //    [0, 0, 0, 0],
 //    [0, 0, 0, 0]
 //];
-//blockItems.reversedS.blockMatrix = [
+//blockContainer.reversedS.blockMatrix = [
 //    [1, 1, 0, 0],
 //    [0, 1, 1, 0],
 //    [0, 0, 0, 0],
@@ -282,11 +348,6 @@ function start() {
 
 var automaticMoveDownTimespan = 300; // I HAVE NO FUCKING CLUE HOW MUCH TIME THIS IS?! ->> cause a value of 300 is approx. around one second???
 var elapsedTimeForAutomaticMoveDown = 0;
-
-var test_spawnBlockEvery = automaticMoveDownTimespan*2;
-var test_elapsedTimeForSpawn = 0;
-var test_x = 0;
-var test_xIncrementMultiplier = 1;
 
 var clearRowActivated = false;
 var clearRows = [];
@@ -302,6 +363,7 @@ function update(deltaTime) {
     if (clearRowActivated) {
         elapsedTimeForClearRow += deltaTime;
         if (elapsedTimeForClearRow >= timeToClearRow) {
+            var rows = clearRows.length;
             while (clearRows.length > 0) {
                 var y = clearRows.pop();
                 for (var x = 0; x < grid.size.x; ++x) {
@@ -316,6 +378,12 @@ function update(deltaTime) {
                     }
                 }
             }
+            //move all blocks down
+            grid.blocksOnField.forEach(function (item) {
+                for (var i = 0; i < rows; ++i) {
+                    grid.moveBlockDown(item);
+                }
+            });
             clearRowActivated = false;
             elapsedTimeForClearRow = 0;
         }
@@ -340,22 +408,8 @@ function update(deltaTime) {
     //automatic move down
     elapsedTimeForAutomaticMoveDown += deltaTime;
     if (elapsedTimeForAutomaticMoveDown >= automaticMoveDownTimespan) {
-        grid.blocksOnField.forEach(function (item) {
-            grid.moveBlockDown(item);
-            //item.moveDown();
-        });
+        grid.moveActiveBlockContainerDown();
         elapsedTimeForAutomaticMoveDown = 0;
-    }
-
-    //automatic spawn for testing purposes
-    test_elapsedTimeForSpawn += deltaTime;
-    if (test_elapsedTimeForSpawn >= test_spawnBlockEvery) {
-        grid.spawnBlock(new Block("red"));
-        if (test_x + 1 * test_xIncrementMultiplier >= grid.size.x || test_x + 1 * test_xIncrementMultiplier < 0) {
-            test_xIncrementMultiplier *= -1;
-        }
-        test_x += test_xIncrementMultiplier * 1;
-        test_elapsedTimeForSpawn = 0;
     }
 
     //key mapping - the held shit doesn't work -> our update method deltatime is too fast -> consider other method!
@@ -374,6 +428,8 @@ function render() {
     if (isGameOver) {
         return;
     }
+
+    //clear dirty rectangles
     while (dirtyRectangles.length > 0) {
         var rect = dirtyRectangles.pop();
 
@@ -381,7 +437,7 @@ function render() {
         fieldCanvasContext.clearRect(rect.x, rect.y, rect.width, rect.height);
     }
 
-    //render dirty blocks delete
+    //render dirty blocks 
     grid.blocksOnField.forEach(function(block) {
         if (block.dirty) {
             block.draw(fieldCanvasContext);
