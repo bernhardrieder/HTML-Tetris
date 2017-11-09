@@ -426,23 +426,23 @@ function update(deltaTime) {
     }
 
     //key mapping - the held shit doesn't work -> our update method deltatime is too fast -> consider other method!
-    if (KEY_STATUS.left.pressed && !lock.left) {
+    if (KEY_STATUS.left.pressed && !inputLock.left) {
         moveLeft();
-    } else if (KEY_STATUS.right.pressed && !lock.right) {
+    } else if (KEY_STATUS.right.pressed && !inputLock.right) {
         moveRight();
-    } else if (KEY_STATUS.up.pressed && !lock.rotate) {
+    } else if (KEY_STATUS.up.pressed && !inputLock.rotate) {
         rotate();
-    } else if (KEY_STATUS.down.pressed && !lock.drop) {
+    } else if (KEY_STATUS.down.pressed && !inputLock.drop) {
         drop();
     }
 
-    lock.left = KEY_STATUS.left.pressed;
-    lock.right = KEY_STATUS.right.pressed;
-    lock.rotate = KEY_STATUS.up.pressed;
-    lock.drop = KEY_STATUS.down.pressed;
+    inputLock.left = KEY_STATUS.left.pressed;
+    inputLock.right = KEY_STATUS.right.pressed;
+    inputLock.rotate = KEY_STATUS.up.pressed;
+    inputLock.drop = KEY_STATUS.down.pressed;
 }
 
-var lock = {
+var inputLock = {
     left: false,
     right: false,
     drop: false,
