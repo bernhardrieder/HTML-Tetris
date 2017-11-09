@@ -15,6 +15,52 @@ var gridCanvasContext = gridCanvas.getContext("2d");
 var lastLoopTime = 0;
 var isGameOver = false;
 
+var blockSize;
+
+function onPressed(evt) {
+
+	// get event position
+	var mx = evt.offsetX, my = evt.offsetY;
+
+	if (mx == null || my == null) {
+		mx = evt.touches[0].clientX;
+		my = evt.touches[0].clientY;
+	}
+
+	var leftSideX = gridCanvas.width * 0.25;
+	var rightSideX = gridCanvas.width * 0.75;
+	var centerY = gridCanvas.height *0.5;
+
+	// check if within
+	if (mx <= leftSideX) {
+		// move left
+		KEY_STATUS["left"].pressed = true;
+	}
+	else if (mx >= rightSideX) {
+		// move right
+		KEY_STATUS["right"].pressed = true;
+	}
+	else if (mx > leftSideX && mx < rightSideX) {
+		if (my < centerY) {
+			// rotate
+		KEY_STATUS["up"].pressed = true;
+		}
+		else if (my >= centerY) {
+			// move down
+		KEY_STATUS["down"].pressed = true;
+		}
+	}
+
+}
+
+function onReleased(evt) {
+
+	KEY_STATUS["left"].pressed = false;
+	KEY_STATUS["right"].pressed = false;
+	KEY_STATUS["up"].pressed = false;
+	KEY_STATUS["down"].pressed = false;
+}
+
 //initialises the whole game
 function init() {
     //setup background canvas
@@ -24,6 +70,32 @@ function init() {
     //setup main canvas
     gridCanvas.width = window.innerWidth;
     gridCanvas.height = window.innerHeight;
+
+    // dynamic block scaling
+    blockSize = gridCanvas.width / 12.0;
+    var blockHeight = gridCanvas.height / 21.0;
+
+    if(blockHeight < blockSize)
+    {
+    	blockSize = blockHeight;
+    }
+    // console.log("blockSize: " + blockSize);
+
+    //setup touch input
+	var evt1 = "touchstart";
+	var evt2 = "touchend";
+    if (gridCanvas.width >= 500) {
+		// stylesheet = document.styleSheets[0];
+		// stylesheet.cssRules[0]
+
+		// viewport.style.border = "1px solid #000";
+		// canvas.style.border = "1px solid #000";
+		evt1 = "mousedown";
+		evt2 = "mouseup";
+	}
+
+    document.addEventListener(evt1, onPressed);
+    document.addEventListener(evt2, onReleased);
 
     //setup game loop like in course slide
     var loop = function(time = 0) {
@@ -107,7 +179,7 @@ var grid = {
                     block.container = container;
                     container.blocks.push(block);
                     this.blocksOnField.push(block);
-                    
+
                     block.setCanvasPosition(this.getCanvasPositionFromGridPosition(spawnX + x, y));
 
                     //is there on this position already something?
@@ -136,7 +208,7 @@ var grid = {
         var neighbor = this.matrix[block.gridPosition.x][block.gridPosition.y + 1];
         if (neighbor && neighbor.container !== block.container) {
             return false;
-        } 
+        }
         return true;
     },
 
@@ -189,7 +261,7 @@ var grid = {
             canMove &= grid.isMoveBlockDownPossible(block);
         });
         if (canMove) {
-            ++this.activeBlockContainer.upperLeftGridCornerPosition.y; 
+            ++this.activeBlockContainer.upperLeftGridCornerPosition.y;
             this.activeBlockContainer.blocks.forEach(function(block = Block) {
                 grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined;
             });
@@ -221,7 +293,7 @@ var grid = {
                 --this.activeBlockContainer.upperLeftGridCornerPosition.x;
             }
             this.activeBlockContainer.blocks.forEach(function (block = Block) {
-                grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined; 
+                grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined;
             });
             this.activeBlockContainer.blocks.forEach(function (block = Block) {
                 block.move(false, toTheRight, !toTheRight);
@@ -230,7 +302,7 @@ var grid = {
                 block.gridPosition.x += toTheRight ? 1 : -1;
                 grid.matrix[block.gridPosition.x][block.gridPosition.y] = block;
             });
-        } 
+        }
     },
 
     rotateActiveBlockContainer: function () {
@@ -266,7 +338,7 @@ var grid = {
     },
 
     debug: function () {
-        var string = ""; 
+        var string = "";
         for (var y = 0; y < grid.size.y; ++y) {
             for (var x = 0; x < grid.size.x; ++x) {
                 string += this.matrix[x][y] ? 1 : 0;
@@ -275,7 +347,7 @@ var grid = {
         }
         console.log(string);
     }
-    
+
 }
 
 var blockSize = 30;
@@ -462,7 +534,7 @@ function update(deltaTime) {
             elapsedTimeForClearRow = 0;
         }
     }
-    
+
     //automatic move down
     elapsedTimeForAutomaticMoveDown += deltaTime;
     if (elapsedTimeForAutomaticMoveDown >= automaticMoveDownTimespan) {
@@ -470,7 +542,7 @@ function update(deltaTime) {
         elapsedTimeForAutomaticMoveDown = 0;
     }
 
-    //key mapping 
+    //key mapping
     if (KEY_STATUS.left.pressed && !inputLock.left) {
         moveLeft();
     } else if (KEY_STATUS.right.pressed && !inputLock.right) {
@@ -508,7 +580,7 @@ function render() {
         gridCanvasContext.clearRect(rect.x, rect.y, rect.width, rect.height);
     }
 
-    //render dirty blocks 
+    //render dirty blocks
     grid.blocksOnField.forEach(function(block) {
         if (block.dirty) {
             block.draw(gridCanvasContext);
