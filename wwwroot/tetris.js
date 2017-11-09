@@ -17,11 +17,13 @@ var fieldSize = {
     x: 10,
     y: 20
 }
-var field = [fieldSize.x, fieldSize.y];
-for (x = 0; x < fieldSize.x; ++x) {
-    for (y = 0; y < fieldSize.y; ++y) {
-        field[x, y] = 0; //no block on it
-    }
+
+var fieldMatrix = [];
+for (var x = 0; x < fieldSize.x; ++x) {
+    if (!fieldMatrix[x])
+        fieldMatrix[x] = [];
+    for (var y = 0; y < fieldSize.y; ++y)
+        fieldMatrix[x][y] = 0;
 }
 
 var dirtyRectangles = [];
@@ -80,10 +82,19 @@ function Block(color, x, y) {
         canvasContext.fillRect(this.x, this.y, this.width, this.height);
         this.dirty = false;
     }
+
+    this.destroy = function() {
+        dirtyRectangles.push({
+            x: this.x,
+            y: this.y,
+            width: this.width,
+            height: this.height
+        });
+    }
 }
 
 function FieldBlock(color, fieldX, fieldY) {
-    if (field[fieldX, fieldY] === 1) {
+    if (fieldMatrix[fieldX][fieldY] === 1) {
         gameOver();
         return;
     }
@@ -99,19 +110,19 @@ function FieldBlock(color, fieldX, fieldY) {
     Block.call(this, color, pos.x, pos.y);
 
     this.fieldPosition = { x: fieldX, y: fieldY}; 
-    field[fieldX, fieldY] = 1;
+    fieldMatrix[fieldX][fieldY] = 1;
 
     this.moveDown = function () {
         //check if block can move
-        if (this.fieldPosition.y + 1 >= fieldSize.y || field[this.fieldPosition.x, this.fieldPosition.y + 1] === 1) {
+        if (this.fieldPosition.y + 1 >= fieldSize.y || fieldMatrix[this.fieldPosition.x][this.fieldPosition.y + 1] === 1) {
             return;
         }
 
         var originalX = this.x;
         var originalY = this.y;
 
-        field[this.fieldPosition.x, this.fieldPosition.y++] = 0;
-        field[this.fieldPosition.x, this.fieldPosition.y] = 1;
+        fieldMatrix[this.fieldPosition.x][this.fieldPosition.y] = 0;
+        fieldMatrix[this.fieldPosition.x][++this.fieldPosition.y] = 1;
 
         this.y += blockSize;
 
@@ -134,14 +145,16 @@ function FieldBlock(color, fieldX, fieldY) {
 FieldBlock.prototype = Block;
 
 function start() {
-    blocksOnField.push(new FieldBlock("red", 0, 0));
+
 }
 
-var automaticMoveDownTimespan = 300; // I HAVE NO FUCKING CLUE WHAT DELTATIME IS?! ->> 300 is approx. around 1 second???
+var automaticMoveDownTimespan = 100; // I HAVE NO FUCKING CLUE WHAT DELTATIME IS?! ->> 300 is approx. around 1 second???
 var elapsedTimeForAutomaticMoveDown = 0;
 
-var test_spawnBlockEvery = 1000;
+var test_spawnBlockEvery = 100;
 var test_elapsedTimeForSpawn = 0;
+var test_x = 0;
+var test_xIncrementMultiplier = 1;
 function update(deltaTime) {
     if (isGameOver) {
         return;
@@ -156,8 +169,35 @@ function update(deltaTime) {
 
     test_elapsedTimeForSpawn += deltaTime;
     if (test_elapsedTimeForSpawn >= test_spawnBlockEvery) {
-        blocksOnField.push(new FieldBlock("red", 0, 0));
+        blocksOnField.push(new FieldBlock("red", test_x, 0));
+        if (test_x + 1 * test_xIncrementMultiplier >= fieldSize.x || test_x + 1 * test_xIncrementMultiplier < 0) {
+            test_xIncrementMultiplier *= -1;
+        }
+        test_x += test_xIncrementMultiplier * 1;
         test_elapsedTimeForSpawn = 0;
+    }
+
+    //check if there is a full row and destroy it!
+    for (var y = 0; y < fieldSize.y; ++y) {
+        var count = 0;
+        //count === x -> we can stop counting because there is a hole!
+        for (var x = 0; x < fieldSize.x && count === x; ++x) {
+            count += fieldMatrix[x][y];
+        }
+        //did we find a full row?
+        if (count === fieldSize.x) {
+            for (var x = 0; x < fieldSize.x; ++x) {
+                fieldMatrix[x][y] = 0;
+            }
+            var i = blocksOnField.length;
+            while (i--) {
+                if (blocksOnField[i] && blocksOnField[i].fieldPosition.y === y) {
+                    blocksOnField[i].destroy();
+                    blocksOnField[i] = undefined;
+                    blocksOnField.splice(i, 1);
+                } 
+            }
+        }
     }
 
     //key mapping - the held shit doesn't work -> our update method deltatime is too fast -> consider other method!
@@ -173,20 +213,21 @@ function update(deltaTime) {
 }
 
 function render() {
-    var i, dirtyRectangleCount = dirtyRectangles.length;
-    for (i = 0; i < dirtyRectangleCount; i += 1) {
+    var dirtyRectangleCount = dirtyRectangles.length;
+    for (var i = 0; i < dirtyRectangleCount; i += 1) {
         var rect = dirtyRectangles.pop();
 
         // clear this rectangle from the canvas
         fieldCanvasContext.clearRect(rect.x, rect.y, rect.width, rect.height);
     }
 
-    //render dirty blocks
-    blocksOnField.forEach(function(block) {
+    //render dirty blocks delete
+    blocksOnField.forEach(function (block) {
         if (block.dirty) {
             block.draw(fieldCanvasContext);
         }
     });
+
 }
 
 function rotate() {
