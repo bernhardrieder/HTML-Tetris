@@ -79,7 +79,7 @@ var grid = {
     activeBlockContainer: 0,
     spawnX: 0,
 
-    init: function () {
+    init: function() {
         this.spawnX = this.size.x / 2;
         for (var x = 0; x < this.size.x; ++x) {
             this.matrix[x] = [];
@@ -88,18 +88,18 @@ var grid = {
         }
     },
 
-    getCanvasPositionFromGridPosition: function (x, y) {
+    getCanvasPositionFromGridPosition: function(x, y) {
         return {
             x: blockSize /*wall*/ + x * blockSize,
             y: y * blockSize
         }
     },
 
-    spawnNewBlockContainer: function () {
+    spawnNewBlockContainer: function() {
         grid.spawnBlockContainer(new BlockContainer(getRandomColor(), blockContainer.normalL));
     },
 
-    spawnBlockContainer: function (container = BlockContainer) {
+    spawnBlockContainer: function(container = BlockContainer) {
         this.activeBlockContainer = container;
         container.init();
 
@@ -134,38 +134,51 @@ var grid = {
         }
 
     },
-    isMoveBlockDownPossible: function (block = Block) {
-
-        var next = this.matrix[block.gridPosition.x][block.gridPosition.y + 1];
+    isMoveBlockDownPossible: function(block = Block) {
         //check if block can move
         if (block.gridPosition.y + 1 >= this.size.y) {
             return false;
-        } else if (next && next.container === block.container) {
-            return true;
-        } else if (next) {
+        }
+
+        var next = this.matrix[block.gridPosition.x][block.gridPosition.y + 1];
+        if (next && next.container !== block.container) {
+            return false;
+        } 
+        return true;
+    },
+
+    isMoveBlockSidewaysPossible: function (block = Block, toTheRight = false) {
+        //check if block can move
+
+        if (toTheRight && block.gridPosition.x + 1 >= this.size.x || !toTheRight && block.gridPosition.x - 1 < 0) {
+            return false;
+        }
+        var posX = block.gridPosition.x + toTheRight ? 1 : -1;
+        var next = this.matrix[posX][block.gridPosition.y];
+        if (next && next.container !== block.container) {
             return false;
         }
         return true;
     },
 
-    moveActiveBlockContainerDown: function () {
-        var container = this.activeBlockContainer;
+    moveActiveBlockContainerDown: function() {
         var canMove = true;
-        container.blocks.forEach(function (block = Block) {
+        this.activeBlockContainer.blocks.forEach(function(block = Block) {
             canMove &= grid.isMoveBlockDownPossible(block);
         });
         if (canMove) {
-            this.activeBlockContainer.blocks.forEach(function (block = Block) {
-                grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined; //WHY THE FUCK DO I NEED TO CALL GRID.MATRIX AND CAN'T USE THIS.MATRIX??!??????
+            this.activeBlockContainer.blocks.forEach(function(block = Block) {
+                grid.matrix[block.gridPosition.x][block.gridPosition.y] =
+                    undefined; //WHY THE FUCK DO I NEED TO CALL GRID.MATRIX AND CAN'T USE THIS.MATRIX??!??????
             });
-            this.activeBlockContainer.blocks.forEach(function (block = Block) {
-                block.moveDown();
+            this.activeBlockContainer.blocks.forEach(function(block = Block) {
+                block.move(true, false, false);
             });
-            this.activeBlockContainer.blocks.forEach(function (block = Block) {
+            this.activeBlockContainer.blocks.forEach(function(block = Block) {
                 grid.matrix[block.gridPosition.x][++block.gridPosition.y] = block;
             });
         } else {
-            this.activeBlockContainer.blocks.forEach(function (block = Block) {
+            this.activeBlockContainer.blocks.forEach(function(block = Block) {
                 block.container = undefined;
             });
             this.activeBlockContainer = undefined;
@@ -176,10 +189,30 @@ var grid = {
 
     },
 
+    moveActiveBlockContainerSideways: function(toTheRight = false) {
+        var canMove = true;
+        this.activeBlockContainer.blocks.forEach(function (block = Block) {
+            canMove &= grid.isMoveBlockSidewaysPossible(block, toTheRight);
+        });
+        if (canMove) {
+            this.activeBlockContainer.blocks.forEach(function (block = Block) {
+                grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined; 
+            });
+            this.activeBlockContainer.blocks.forEach(function (block = Block) {
+                block.move(false, toTheRight, !toTheRight);
+            });
+            this.activeBlockContainer.blocks.forEach(function (block = Block) {
+                block.gridPosition.x += toTheRight ? 1 : -1;
+                grid.matrix[block.gridPosition.x][block.gridPosition.y] = block;
+            });
+        } 
+    },
+
     //this is used for all blocks if a row will be cleared
-    moveBlockDown: function (block) {
+    moveBlockDown: function(block) {
         //check if block can move
-        if (block.container || block.gridPosition.y + 1 >= this.size.y ||
+        if (!block || block.container ||
+            block.gridPosition.y + 1 >= this.size.y ||
             this.matrix[block.gridPosition.x][block.gridPosition.y + 1]) {
             return;
         }
@@ -187,8 +220,20 @@ var grid = {
         this.matrix[block.gridPosition.x][block.gridPosition.y] = undefined;
         this.matrix[block.gridPosition.x][++block.gridPosition.y] = block;
 
-        block.moveDown();
+        block.move(true, false,false);
+    },
+
+    debug: function () {
+        var string = ""; 
+        for (var y = 0; y < grid.size.y; ++y) {
+            for (var x = 0; x < grid.size.x; ++x) {
+                string += this.matrix[x][y] ? 1 : 0;
+            }
+            string += "\n";
+        }
+        console.log(string);
     }
+    
 }
 
 var blockSize = 30;
@@ -221,11 +266,18 @@ function Block(color) {
         });
     }
 
-    this.moveDown = function() {
+    this.move = function(down = false, right = false, left = false) {
         var originalX = this.canvasPosition.x;
         var originalY = this.canvasPosition.y;
 
-        this.canvasPosition.y += blockSize;
+        if (down) {
+            this.canvasPosition.y += blockSize;
+        }
+        if (right) {
+            this.canvasPosition.x += blockSize;
+        } else if (left) {
+            this.canvasPosition.x -= blockSize;
+        }
 
         if (originalX !== this.canvasPosition.x || originalY !== this.canvasPosition.y) {
             this.dirty = true;
@@ -240,6 +292,7 @@ function Block(color) {
             });
         }
     }
+    
 }
 
 function BlockContainer(color, params = blockContainerParams) {
@@ -359,7 +412,8 @@ function start() {
     grid.spawnNewBlockContainer();
 }
 
-var automaticMoveDownTimespan = 300; // I HAVE NO FUCKING CLUE HOW MUCH TIME THIS IS?! ->> cause a value of 300 is approx. around one second???
+var automaticMoveDownTimespan =
+    300; // I HAVE NO FUCKING CLUE HOW MUCH TIME THIS IS?! ->> cause a value of 300 is approx. around one second???
 var elapsedTimeForAutomaticMoveDown = 0;
 
 var clearRowActivated = false;
@@ -377,8 +431,12 @@ function update(deltaTime) {
         elapsedTimeForClearRow += deltaTime;
         if (elapsedTimeForClearRow >= timeToClearRow) {
             var rows = clearRows.length;
+            var minRow = grid.size.y;
             while (clearRows.length > 0) {
                 var y = clearRows.pop();
+                if (minRow > y) {
+                    minRow = y;
+                }
                 for (var x = 0; x < grid.size.x; ++x) {
                     grid.matrix[x][y] = undefined;
                 }
@@ -392,9 +450,11 @@ function update(deltaTime) {
                 }
             }
             //move all blocks down
-            grid.blocksOnField.forEach(function (item) {
+            grid.blocksOnField.forEach(function(block = Block) {
                 for (var i = 0; i < rows; ++i) {
-                    grid.moveBlockDown(item);
+                    //if (block.gridPosition.y > minRow) {
+                        grid.moveBlockDown(block);
+                    //}
                 }
             });
             clearRowActivated = false;
@@ -425,6 +485,8 @@ function update(deltaTime) {
         elapsedTimeForAutomaticMoveDown = 0;
     }
 
+
+    grid.debug();
     //key mapping - the held shit doesn't work -> our update method deltatime is too fast -> consider other method!
     if (KEY_STATUS.left.pressed && !inputLock.left) {
         moveLeft();
@@ -440,6 +502,8 @@ function update(deltaTime) {
     inputLock.right = KEY_STATUS.right.pressed;
     inputLock.rotate = KEY_STATUS.up.pressed;
     inputLock.drop = KEY_STATUS.down.pressed;
+
+    grid.debug();
 }
 
 var inputLock = {
@@ -482,13 +546,11 @@ function drop() {
 }
 
 function moveLeft() {
-    // todo
-    console.log("moveLeft action clicked/pressed");
+    grid.moveActiveBlockContainerSideways(false);
 }
 
 function moveRight() {
-    // todo
-    console.log("moveRight action clicked/pressed");
+    grid.moveActiveBlockContainerSideways(true);
 }
 
 function gameOver() {
@@ -528,7 +590,7 @@ document.onkeydown = function(e) {
     var keyCode = (e.keyCode) ? e.keyCode : e.charCode;
     if (KEY_CODES[keyCode]) {
         e.preventDefault();
-        
+
         KEY_STATUS[KEY_CODES[keyCode]].pressed = true;
 
         //console.log()
