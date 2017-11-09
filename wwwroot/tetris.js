@@ -7,30 +7,25 @@
  * http://code.bytespider.eu/post/21438674255/dirty-rectangles
  */
 
-/* ~~~~~~ TODO SECTION ~~~~~~ */
-//todo: create onscreen buttons or touch input? -> https://www.w3schools.com/graphics/game_controllers.asp
-//todo: use images of tetris blocks instead of drawing a rectangle? -> https://www.w3schools.com/graphics/game_images.asp
-
-/* ~~~~~~ actual game ~~~~~~ */
-
 var dirtyRectangles = [];
 var backgroundCanvas = document.getElementById("background");
 var backgroundContext = backgroundCanvas.getContext("2d");
-var fieldCanvas = document.getElementById("main");
-var fieldCanvasContext = fieldCanvas.getContext("2d");
+var gridCanvas = document.getElementById("main");
+var gridCanvasContext = gridCanvas.getContext("2d");
 var lastLoopTime = 0;
 var isGameOver = false;
 
+//initialises the whole game
 function init() {
     //setup background canvas
     backgroundCanvas.width = window.innerWidth;
     backgroundCanvas.height = window.innerHeight;
 
     //setup main canvas
-    fieldCanvas.width = window.innerWidth;
-    fieldCanvas.height = window.innerHeight;
+    gridCanvas.width = window.innerWidth;
+    gridCanvas.height = window.innerHeight;
 
-    //setup game loop
+    //setup game loop like in course slide
     var loop = function(time = 0) {
         var deltaTime = time - lastLoopTime;
         lastLoopTime = time;
@@ -56,6 +51,7 @@ function init() {
     startGame();
 }
 
+//this is an standard random function - there is nothing to say
 function randomIntFromInterval(min, max) {
     return Math.floor(Math.random() * (max - min + 1) + min);
 }
@@ -70,15 +66,14 @@ function getRandomColor() {
     return color;
 }
 
+//holds and interacts with every block in the game
 var grid = {
     size: { x: 10, y: 20 },
     matrix: [],
     blocksOnField: [],
     activeBlockContainer: 0,
-    spawnX: 0,
 
     init: function() {
-        this.spawnX = this.size.x / 2;
         for (var x = 0; x < this.size.x; ++x) {
             this.matrix[x] = [];
             for (var y = 0; y < this.size.y; ++y)
@@ -88,7 +83,7 @@ var grid = {
 
     getCanvasPositionFromGridPosition: function(x, y) {
         return {
-            x: blockSize /*wall*/ + x * blockSize,
+            x: blockSize /* this is the wall*/ + x * blockSize,
             y: y * blockSize
         }
     },
@@ -102,22 +97,20 @@ var grid = {
         container.init();
 
         var triggerGameOver = false;
-        var spawnX = (this.size.x - container.blockMatrix.length) / 2;
+        var spawnX = (this.size.x - container.blockMatrixLUT.length) / 2;
         this.activeBlockContainer.upperLeftGridCornerPosition = { x: spawnX, y: 0 };
-        for (var y = 0; y < container.blockMatrix[0].length; ++y) {
-            //var rowBlockCount = 0;
+        for (var y = 0; y < container.blockMatrixLUT[0].length; ++y) {
+            for (var x = 0; x < container.blockMatrixLUT.length; ++x) {
 
-            for (var x = 0; x < container.blockMatrix.length; ++x) {
-                //rowBlockCount += container.blockMatrix[x][y];
-
-                if (container.blockMatrix[container.currentRotation][x][y]) {
+                if (container.blockMatrixLUT[container.currentRotation][x][y]) {
                     var block = new Block(container.color);
                     block.container = container;
                     container.blocks.push(block);
                     this.blocksOnField.push(block);
-
-
+                    
                     block.setCanvasPosition(this.getCanvasPositionFromGridPosition(spawnX + x, y));
+
+                    //is there on this position already something?
                     if (this.matrix[spawnX + x][y]) {
                         triggerGameOver = true;
                     }
@@ -133,14 +126,15 @@ var grid = {
         }
 
     },
+
     isMoveBlockDownPossible: function(block = Block) {
         //check if block can move
         if (block.gridPosition.y + 1 >= this.size.y) {
             return false;
         }
 
-        var next = this.matrix[block.gridPosition.x][block.gridPosition.y + 1];
-        if (next && next.container !== block.container) {
+        var neighbor = this.matrix[block.gridPosition.x][block.gridPosition.y + 1];
+        if (neighbor && neighbor.container !== block.container) {
             return false;
         } 
         return true;
@@ -153,8 +147,8 @@ var grid = {
             return false;
         }
         var posX = block.gridPosition.x + toTheRight ? 1 : -1;
-        var next = this.matrix[posX][block.gridPosition.y];
-        if (next && next.container !== block.container) {
+        var neighbor = this.matrix[posX][block.gridPosition.y];
+        if (neighbor && neighbor.container !== block.container) {
             return false;
         }
         return true;
@@ -162,7 +156,7 @@ var grid = {
 
 
     isBlockContainerRotationPossible: function (rotation) {
-        var matrixNew = this.activeBlockContainer.blockMatrix[rotation];
+        var matrixNew = this.activeBlockContainer.blockMatrixLUT[rotation];
 
         //get all current blocks and try to fit them into the other
         var testGridPositions = [];
@@ -197,8 +191,7 @@ var grid = {
         if (canMove) {
             ++this.activeBlockContainer.upperLeftGridCornerPosition.y; 
             this.activeBlockContainer.blocks.forEach(function(block = Block) {
-                grid.matrix[block.gridPosition.x][block.gridPosition.y] =
-                    undefined; //WHY THE FUCK DO I NEED TO CALL GRID.MATRIX AND CAN'T USE THIS.MATRIX??!??????
+                grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined;
             });
             this.activeBlockContainer.blocks.forEach(function(block = Block) {
                 block.move(true, false, false);
@@ -207,15 +200,13 @@ var grid = {
                 grid.matrix[block.gridPosition.x][++block.gridPosition.y] = block;
             });
         } else {
+            //the block is on the ground or another block!
             this.activeBlockContainer.blocks.forEach(function(block = Block) {
                 block.container = undefined;
             });
             this.activeBlockContainer = undefined;
             checkForFullRow = true;
-            //todo: move this to another location?
-            this.spawnNewBlockContainer();
         }
-
     },
 
     moveActiveBlockContainerSideways: function(toTheRight = false) {
@@ -246,7 +237,6 @@ var grid = {
         var rotation = (this.activeBlockContainer.currentRotation +1)% 4; // there are just 4 rotations possible
         var rotationPossibleAndGridPositions = grid.isBlockContainerRotationPossible(rotation);
         if (rotationPossibleAndGridPositions.isRotationPossible) {
-            console.log("rotation is possible!");
             this.activeBlockContainer.currentRotation = rotation;
             this.activeBlockContainer.blocks.forEach(function (block = Block) {
                 grid.matrix[block.gridPosition.x][block.gridPosition.y] = undefined;
@@ -355,25 +345,24 @@ function BlockContainer(color, params = rotationMatrixLUT) {
     this.currentRotation = 0;
     this.color = color;
     this.blocks = [];
-    this.blockMatrix = [];
+    this.blockMatrixLUT = [];
     this.upperLeftGridCornerPosition = { x: 0, y: 0 };
 
     this.init = function() {
         for (var i = 0; i < params.length; ++i) {
-            this.blockMatrix[i] = [];
+            this.blockMatrixLUT[i] = [];
             for (var y = 0; y < params[0].length; ++y) {
-                this.blockMatrix[i][y] = [];
+                this.blockMatrixLUT[i][y] = [];
                 for (var x = 0; x < params[0][0].length; ++x)
-                    this.blockMatrix[i][y][x] = undefined;
+                    this.blockMatrixLUT[i][y][x] = undefined;
             }
         }
 
-        //swap x and y! -> swapped axis makes it easier for container definition!
-
+        //swap x and y! -> swapped axis makes it easier in container LUT definition!
         for (var i = 0; i < params.length; ++i) {
             for (var y = 0; y < params[0].length; ++y) {
                 for (var x = 0; x < params[0][0].length; ++x) {
-                    this.blockMatrix[i][y][x] = params[i][x][y];
+                    this.blockMatrixLUT[i][y][x] = params[i][x][y];
                 }
             }
         }
@@ -394,8 +383,7 @@ function startGame() {
     grid.spawnNewBlockContainer();
 }
 
-var automaticMoveDownTimespan =
-    300; // I HAVE NO FUCKING CLUE HOW MUCH TIME THIS IS?! ->> cause a value of 300 is approx. around one second???
+var automaticMoveDownTimespan = 300; // I HAVE NO FUCKING CLUE HOW MUCH TIME THIS IS?! ->> cause a value of 300 is approx. around one second???
 var elapsedTimeForAutomaticMoveDown = 0;
 
 var clearRowActivated = false;
@@ -410,6 +398,26 @@ function update(deltaTime) {
             startGame();
         }
         return;
+    }
+
+    if (checkForFullRow) {
+        //check if there is a full row and destroy it!
+        for (var y = 0; y < grid.size.y; ++y) {
+            var count = 0;
+            //count === x -> we can stop counting because there is a hole!
+            for (var x = 0; x < grid.size.x && count === x; ++x) {
+                count += grid.matrix[x][y] ? 1 : 0;
+            }
+            //did we find a full row?
+            if (count === grid.size.x) {
+                if ($.inArray(y, clearRows) === -1) {
+                    //clear this row
+                    clearRows.push(y);
+                }
+                clearRowActivated = true;
+            }
+        }
+        checkForFullRow = false;
     }
 
     //should clear some rows?
@@ -454,26 +462,7 @@ function update(deltaTime) {
             elapsedTimeForClearRow = 0;
         }
     }
-    if (checkForFullRow) {
-        //check if there is a full row and destroy it!
-        for (var y = 0; y < grid.size.y; ++y) {
-            var count = 0;
-            //count === x -> we can stop counting because there is a hole!
-            for (var x = 0; x < grid.size.x && count === x; ++x) {
-                count += grid.matrix[x][y] ? 1 : 0;
-            }
-            //did we find a full row?
-            if (count === grid.size.x) {
-                if ($.inArray(y, clearRows) === -1) {
-                    //clear this row
-                    clearRows.push(y);
-                }
-                clearRowActivated = true;
-            }
-        }
-        checkForFullRow = false;
-    }
-
+    
     //automatic move down
     elapsedTimeForAutomaticMoveDown += deltaTime;
     if (elapsedTimeForAutomaticMoveDown >= automaticMoveDownTimespan) {
@@ -481,9 +470,7 @@ function update(deltaTime) {
         elapsedTimeForAutomaticMoveDown = 0;
     }
 
-
-    //grid.debug();
-    //key mapping - the held shit doesn't work -> our update method deltatime is too fast -> consider other method!
+    //key mapping 
     if (KEY_STATUS.left.pressed && !inputLock.left) {
         moveLeft();
     } else if (KEY_STATUS.right.pressed && !inputLock.right) {
@@ -497,9 +484,12 @@ function update(deltaTime) {
     inputLock.left = KEY_STATUS.left.pressed;
     inputLock.right = KEY_STATUS.right.pressed;
     inputLock.rotate = KEY_STATUS.up.pressed;
-    //inputLock.drop = KEY_STATUS.down.pressed;
 
     //grid.debug();
+
+    if (!grid.activeBlockContainer) {
+        grid.spawnNewBlockContainer();
+    }
 }
 
 var inputLock = {
@@ -515,13 +505,13 @@ function render() {
         var rect = dirtyRectangles.pop();
 
         // clear this rectangle from the canvas
-        fieldCanvasContext.clearRect(rect.x, rect.y, rect.width, rect.height);
+        gridCanvasContext.clearRect(rect.x, rect.y, rect.width, rect.height);
     }
 
     //render dirty blocks 
     grid.blocksOnField.forEach(function(block) {
         if (block.dirty) {
-            block.draw(fieldCanvasContext);
+            block.draw(gridCanvasContext);
         }
     });
 
