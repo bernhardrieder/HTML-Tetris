@@ -14,8 +14,7 @@ var gridCanvas = document.getElementById("main");
 var gridCanvasContext = gridCanvas.getContext("2d");
 var lastLoopTime = 0;
 var isGameOver = false;
-
-var blockSize;
+var gameOverDIV = document.getElementById("gameOver");
 
 function onPressed(evt) {
 
@@ -31,26 +30,30 @@ function onPressed(evt) {
 	var rightSideX = gridCanvas.width * 0.75;
 	var centerY = gridCanvas.height *0.5;
 
-	// check if within
-	if (mx <= leftSideX) {
-		// move left
-		KEY_STATUS["left"].pressed = true;
+	if (isGameOver === true) {
+		KEY_STATUS["enter"].pressed = true;
 	}
-	else if (mx >= rightSideX) {
-		// move right
-		KEY_STATUS["right"].pressed = true;
-	}
-	else if (mx > leftSideX && mx < rightSideX) {
-		if (my < centerY) {
-			// rotate
-		KEY_STATUS["up"].pressed = true;
+	else {
+		// check if within
+		if (mx <= leftSideX) {
+			// move left
+			KEY_STATUS["left"].pressed = true;
 		}
-		else if (my >= centerY) {
-			// move down
-		KEY_STATUS["down"].pressed = true;
+		else if (mx >= rightSideX) {
+			// move right
+			KEY_STATUS["right"].pressed = true;
+		}
+		else if (mx > leftSideX && mx < rightSideX) {
+			if (my < centerY) {
+				// rotate
+			KEY_STATUS["up"].pressed = true;
+			}
+			else if (my >= centerY) {
+				// move down
+			KEY_STATUS["down"].pressed = true;
+			}
 		}
 	}
-
 }
 
 function onReleased(evt) {
@@ -59,7 +62,10 @@ function onReleased(evt) {
 	KEY_STATUS["right"].pressed = false;
 	KEY_STATUS["up"].pressed = false;
 	KEY_STATUS["down"].pressed = false;
+	KEY_STATUS["enter"].pressed = false;
 }
+
+var blockSize;
 
 //initialises the whole game
 function init() {
@@ -350,8 +356,6 @@ var grid = {
 
 }
 
-var blockSize = 30;
-
 function Block(color) {
     this.width = blockSize;
     this.height = blockSize;
@@ -451,6 +455,7 @@ function startGame() {
 
     //reset game over
     isGameOver = false;
+    gameOverDIV.style.visibility = "hidden";
 
     //spawn first stone
     grid.spawnNewBlockContainer();
@@ -525,7 +530,7 @@ function update(deltaTime) {
             }
         }
         clearRowActivated = false;
-        
+
     }
 
     //automatic move down
@@ -601,6 +606,7 @@ function moveRight() {
 function gameOver() {
     console.log("GAME OVER!");
     isGameOver = true;
+    gameOverDIV.style.visibility = "visible";
 }
 
 /* ~~~~~~ controller code from galaxian game ~~~~~~ */
